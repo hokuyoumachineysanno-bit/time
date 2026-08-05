@@ -4,77 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#17324d">
-  <meta name="description" content="個人・小規模事業者向け勤怠管理">
+  <meta name="description" content="締め日連動・過去編集・Excel取込対応の勤怠管理PWA">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
   <title>勤怠管理</title>
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <style>
-    :root{
-      --navy:#17324d;--blue:#2f75b5;--bg:#f4f6f8;--card:#fff;
-      --text:#17212b;--muted:#657383;--border:#d9e1e8;
-      --danger:#f5d4d0;--warn:#fce7c2;--success:#dcefd8;--accent:#e5f0f8;
-    }
-    *{box-sizing:border-box}
-    body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--text)}
-    button,input,select,textarea{font:inherit}
-    .app-header{position:sticky;top:0;z-index:20;background:var(--navy);color:#fff;padding:12px 16px;display:flex;justify-content:space-between;align-items:center}
-    .app-header h1{margin:0;font-size:1.25rem}.app-header p{margin:2px 0 0;font-size:.85rem;opacity:.85}
-    main{max-width:980px;margin:auto;padding:12px 12px 80px}
-    .tabs{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-bottom:12px}
-    .tab{border:0;padding:11px 4px;border-radius:10px;background:#e5e9ed;color:#34404c}
-    .tab.active{background:var(--blue);color:#fff}.view{display:none}.view.active{display:block}
-    .card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px;margin-bottom:12px}
-    .card h2{font-size:1.05rem;margin:0 0 12px}
-    .status-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
-    .status-grid.four{grid-template-columns:repeat(4,1fr)}
-    .metric{background:var(--accent);border-radius:14px;padding:12px;text-align:center;min-height:78px;display:flex;flex-direction:column;justify-content:center}
-    .metric span{font-size:.78rem;color:var(--muted)}.metric strong{font-size:1.25rem}
-    .metric.danger{background:var(--danger)}.metric.warning{background:var(--warn)}.metric.success{background:var(--success)}
-    label{display:block;font-size:.9rem;margin-bottom:12px}
-    input,select,textarea{width:100%;margin-top:5px;border:1px solid var(--border);border-radius:10px;padding:11px;background:#fff}
-    input[type=time],input[type=month],input[type=date]{min-width:0}
-    .time-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-    .time-row{display:grid;grid-template-columns:1fr 48px;gap:6px}.time-row input{margin-top:5px}
-    .now{margin-top:5px;border:1px solid var(--border);border-radius:10px;background:#eef3f7}
-    .primary{border:0;border-radius:11px;padding:13px;background:var(--blue);color:#fff;font-weight:700;width:100%;cursor:pointer}
-    .secondary{border:1px solid var(--border);border-radius:11px;padding:11px;background:#fff;cursor:pointer}
-    .ghost{border:1px solid #fff;background:transparent;color:#fff;border-radius:10px;padding:8px}
-    .message{min-height:1.2em;color:#176b3a}.error{color:#9c0006}
-    .summary-list{margin:0}.summary-list div{display:flex;justify-content:space-between;border-bottom:1px solid var(--border);padding:9px 0}
-    .summary-list dt{color:var(--muted)}.summary-list dd{margin:0;font-weight:700}
-    .progress{height:12px;border-radius:20px;background:#e4e8ec;overflow:hidden}.progress div{height:100%;width:0;background:var(--blue);transition:width .2s}
-    .table-wrap{overflow:auto}.table-wrap table{border-collapse:collapse;width:100%;min-width:720px}
-    .table-wrap th,.table-wrap td{border-bottom:1px solid var(--border);padding:9px 7px;text-align:right;white-space:nowrap}
-    .table-wrap th:first-child,.table-wrap td:first-child{text-align:left}
-    .ledger-row{cursor:pointer}.ledger-row:hover{outline:2px solid var(--blue);outline-offset:-2px}
-    .section-head{display:flex;justify-content:space-between;gap:12px;align-items:center}.section-head select,.section-head input{width:auto;margin:0}
-    .hint{color:var(--muted);font-size:.85rem}.period-note{background:var(--accent);padding:9px 12px;border-radius:10px;font-weight:700;margin:0 0 12px}
-    .calendar-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
-    .day{border:1px solid var(--border);border-radius:9px;background:#fff;min-height:58px;padding:5px;text-align:left}
-    .day small{display:block;color:var(--muted)}.day.holiday{background:var(--danger)}.day.company{background:var(--warn)}.day.work{background:#f5f9fc}.day.outside{opacity:.3}
-    .settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}.settings-grid h2,.settings-grid .full{grid-column:1/-1}
-    .button-row{display:flex;flex-wrap:wrap;gap:8px}.button-row button,.file-button{border:1px solid var(--border);border-radius:10px;background:#fff;padding:10px 12px;cursor:pointer}
-    .file-button input{display:none}.danger-button{color:#9c0006!important;background:#f8dddd!important}
-    dialog{border:0;border-radius:16px;width:min(94vw,520px);padding:0}dialog::backdrop{background:#0008}
-    dialog form{padding:18px}.dialog-title{display:flex;justify-content:space-between;align-items:center;gap:12px}.dialog-title h2{margin:0}
-    .dialog-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}.dialog-grid .full{grid-column:1/-1}
-    .type-出勤{background:#e2f0d9}.type-休日出勤{background:#f4cccc}.type-公休{background:#e7e6e6}.type-有休{background:#fff2cc}.type-代休{background:#e4dfec}
-
-    .lock-screen{position:fixed;inset:0;z-index:100;background:linear-gradient(160deg,#17324d,#2f75b5);display:grid;place-items:center;padding:20px}
-    .lock-screen[hidden]{display:none}
-    .lock-card{width:min(92vw,420px);background:#fff;border-radius:18px;padding:22px;box-shadow:0 20px 60px #0005}
-    .lock-card h1{margin:0 0 6px}.lock-card p{color:var(--muted)}
-    .lock-card .message{margin-top:10px}
-
-    @media(max-width:620px){
-      .status-grid.four{grid-template-columns:1fr 1fr}.metric strong{font-size:1.1rem}
-      .settings-grid,.dialog-grid{grid-template-columns:1fr}.settings-grid .full,.dialog-grid .full{grid-column:auto}
-      .tabs{position:sticky;top:66px;z-index:9}.tab{font-size:.82rem}
-      .calendar-grid{gap:3px}.day{min-height:52px;font-size:.85rem}
-    }
-  </style>
 </head>
 <body>
-
   <section id="lockScreen" class="lock-screen">
     <div class="lock-card">
       <h1>勤怠管理</h1>
@@ -86,9 +22,10 @@
       <p class="hint">ログイン状態はこの端末で30日間保持されます。</p>
     </div>
   </section>
+
   <header class="app-header">
     <div><h1>勤怠管理</h1><p id="todayLabel"></p></div>
-    <button id="logoutButton" class="ghost">ログアウト</button>
+    <div class="header-actions"><button id="installBtn" class="ghost" hidden>追加</button><button id="logoutButton" class="ghost">ログアウト</button></div>
   </header>
 
   <main>
@@ -109,11 +46,7 @@
       <p class="period-note" id="todayPeriod"></p>
 
       <article class="card">
-        <label>勤務区分
-          <select id="workType">
-            <option>出勤</option><option>休日出勤</option><option>公休</option><option>有休</option><option>代休</option><option>特休</option>
-          </select>
-        </label>
+        <label>勤務区分<select id="workType"><option>出勤</option><option>休日出勤</option><option>公休</option><option>有休</option><option>代休</option><option>特休</option></select></label>
         <div class="time-grid">
           <label>出勤<div class="time-row"><input id="start" type="time"><button class="now" data-target="start">今</button></div></label>
           <label>退勤<div class="time-row"><input id="end" type="time"><button class="now" data-target="end">今</button></div></label>
@@ -122,7 +55,7 @@
         </div>
         <label>備考<textarea id="note" rows="2" placeholder="現場名、外出理由など"></textarea></label>
         <button id="saveToday" class="primary">今日の勤怠を保存</button>
-        <p id="saveMessage" class="message" aria-live="polite"></p>
+        <p id="saveMessage" class="message"></p>
       </article>
 
       <article class="card">
@@ -144,44 +77,24 @@
         <article class="metric warning"><span>休日出勤</span><strong id="dashHolidayWork">0日</strong></article>
         <article class="metric success"><span>実質休日</span><strong id="dashActualHoliday">0日</strong></article>
       </div>
-      <article class="card">
-        <h2>36協定進捗</h2>
-        <div class="progress"><div id="yearOtBar"></div></div>
-        <p id="yearOtText"></p>
-      </article>
-      <article class="card">
-        <h2>月次一覧</h2>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>月度・期間</th><th>就労</th><th>残業</th><th>休日出勤</th><th>代休残</th></tr></thead>
-            <tbody id="monthRows"></tbody>
-          </table>
-        </div>
-      </article>
+      <article class="card"><h2>36協定進捗</h2><div class="progress"><div id="yearOtBar"></div></div><p id="yearOtText"></p></article>
+      <article class="card"><h2>月次一覧</h2><div class="table-wrap"><table><thead><tr><th>月度・期間</th><th>就労</th><th>残業</th><th>休日出勤</th><th>代休残</th></tr></thead><tbody id="monthRows"></tbody></table></div></article>
     </section>
 
     <section id="view-calendar" class="view">
       <article class="card">
         <div class="section-head"><h2>会社カレンダー</h2><input id="calendarMonth" type="month"></div>
-        <p class="hint">初期値は土曜＝所定休日、日曜＝法定休日です。日付を押して変更します。</p>
+        <p class="hint">土曜＝所定休日、日曜＝法定休日が初期値です。日付を押して変更します。</p>
         <div id="calendarGrid" class="calendar-grid"></div>
       </article>
     </section>
 
     <section id="view-ledger" class="view">
       <article class="card">
-        <div class="section-head">
-          <h2>勤怠台帳</h2>
-          <select id="ledgerPeriod"></select>
-        </div>
+        <div class="section-head"><h2>勤怠台帳</h2><select id="ledgerPeriod"></select></div>
         <p class="period-note" id="ledgerPeriodText"></p>
-        <p class="hint">過去の日付を含め、行をタップすると直接編集できます。</p>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>日付</th><th>休日区分</th><th>勤務区分</th><th>出勤</th><th>退勤</th><th>就労</th><th>残業</th><th>代休残</th></tr></thead>
-            <tbody id="ledgerRows"></tbody>
-          </table>
-        </div>
+        <p class="hint">行をタップすると、過去の勤務区分・時刻・外出・備考を直接編集できます。</p>
+        <div class="table-wrap"><table><thead><tr><th>日付</th><th>休日区分</th><th>勤務区分</th><th>出勤</th><th>退勤</th><th>就労</th><th>残業</th><th>代休残</th></tr></thead><tbody id="ledgerRows"></tbody></table></div>
       </article>
     </section>
 
@@ -192,11 +105,9 @@
         <label>期開始月<input id="fiscalStartMonth" type="number" min="1" max="12"></label>
         <label>期開始日<input id="fiscalStartDay" type="number" min="1" max="31"></label>
         <label>毎月の締め日<input id="cutoffDay" type="number" min="1" max="31"></label>
-        <p id="periodPreview" class="period-note full"></p>
-        <p id="periodWarning" class="message error full"></p>
-
+        <p id="periodPreview" class="period-note full"></p><p id="periodWarning" class="message error full"></p>
         <h2>勤務・労務設定</h2>
-        <label>年間休日目標<input id="annualHolidayTarget" type="number" step="1"></label>
+        <label>年間休日目標<input id="annualHolidayTarget" type="number"></label>
         <label>標準就労時間(h)<input id="standardHours" type="number" step="0.25"></label>
         <label>基本休憩(h)<input id="baseBreak" type="number" step="0.25"></label>
         <label>夜間追加休憩(h)<input id="extraBreak" type="number" step="0.25"></label>
@@ -213,633 +124,26 @@
         <button id="saveSettings" class="primary full">設定を保存</button>
       </article>
 
-
       <article class="card">
-        <h2>Excel／CSVから過去台帳を一括取込み</h2>
-        <p class="hint">読み込む列：日付、勤務区分、出勤、退勤、外出、戻り、備考。計算列は取込まず、現在の設定で再計算します。</p>
-        <label>重複日の扱い
-          <select id="importPolicy">
-            <option value="overwrite">既存データを上書き</option>
-            <option value="skip">既存データをスキップ</option>
-          </select>
-        </label>
-        <label class="file-button">Excel／CSVを選択
-          <input id="importExcel" type="file" accept=".xlsx,.xls,.csv">
-        </label>
-        <p id="importResult" class="message"></p>
-        <div id="importErrors" class="hint"></div>
+        <h2>Excel／CSVから一括取込み</h2>
+        <p class="hint">日付、勤務区分、出勤、退勤、外出、戻り、備考を読み込み、現在の設定で再計算します。</p>
+        <label>重複日の扱い<select id="importPolicy"><option value="overwrite">既存データを上書き</option><option value="skip">既存データをスキップ</option></select></label>
+        <label class="file-button">Excel／CSVを選択<input id="importExcel" type="file" accept=".xlsx,.xls,.csv"></label>
+        <p id="importResult" class="message"></p><div id="importErrors" class="hint"></div>
       </article>
 
       <article class="card">
         <h2>バックアップ</h2>
-        <div class="button-row">
-          <button id="exportJson">JSON保存</button>
-          <label class="file-button">JSON読込<input id="importJson" type="file" accept="application/json"></label>
-          <button id="exportCsv">CSV出力</button>
-          <button id="resetData" class="danger-button">全データ初期化</button>
-        </div>
+        <div class="button-row"><button id="exportJson">JSON保存</button><label class="file-button">JSON読込<input id="importJson" type="file" accept="application/json"></label><button id="exportCsv">CSV出力</button><button id="resetData" class="danger-button">全データ初期化</button></div>
       </article>
     </section>
   </main>
 
-  <dialog id="holidayDialog">
-    <form method="dialog">
-      <div class="dialog-title"><h2 id="holidayDateLabel">休日設定</h2><button value="cancel" class="secondary">閉じる</button></div>
-      <label>区分<select id="holidayType"><option>勤務日</option><option>所定休日</option><option>法定休日</option><option>会社休業日</option></select></label>
-      <label>名称<input id="holidayName" placeholder="祝日、夏季休暇など"></label>
-      <button id="saveHoliday" value="default" class="primary">保存</button>
-    </form>
-  </dialog>
+  <dialog id="holidayDialog"><form method="dialog"><div class="dialog-title"><h2 id="holidayDateLabel">休日設定</h2><button value="cancel" class="secondary">閉じる</button></div><label>区分<select id="holidayType"><option>勤務日</option><option>所定休日</option><option>法定休日</option></select></label><label>名称<input id="holidayName" placeholder="祝日、夏季休暇など"></label><button id="saveHoliday" value="default" class="primary">保存</button></form></dialog>
 
-  <dialog id="recordDialog">
-    <form method="dialog">
-      <div class="dialog-title"><h2>勤怠を編集</h2><button value="cancel" class="secondary">閉じる</button></div>
-      <p id="editDateLabel" class="period-note"></p>
-      <div class="dialog-grid">
-        <label class="full">勤務区分
-          <select id="editType"><option>出勤</option><option>休日出勤</option><option>公休</option><option>有休</option><option>代休</option><option>特休</option></select>
-        </label>
-        <label>出勤<input id="editStart" type="time"></label>
-        <label>退勤<input id="editEnd" type="time"></label>
-        <label>外出<input id="editOut" type="time"></label>
-        <label>戻り<input id="editBack" type="time"></label>
-        <label class="full">備考<textarea id="editNote" rows="2"></textarea></label>
-      </div>
-      <div class="button-row">
-        <button id="saveRecord" value="default" class="primary">保存</button>
-        <button id="deleteRecord" value="cancel" class="danger-button">入力を削除</button>
-      </div>
-    </form>
-  </dialog>
+  <dialog id="recordDialog"><form method="dialog"><div class="dialog-title"><h2>勤怠を編集</h2><button value="cancel" class="secondary">閉じる</button></div><p id="editDateLabel" class="period-note"></p><div class="dialog-grid"><label class="full">勤務区分<select id="editType"><option>出勤</option><option>休日出勤</option><option>公休</option><option>有休</option><option>代休</option><option>特休</option></select></label><label>出勤<input id="editStart" type="time"></label><label>退勤<input id="editEnd" type="time"></label><label>外出<input id="editOut" type="time"></label><label>戻り<input id="editBack" type="time"></label><label class="full">備考<textarea id="editNote" rows="2"></textarea></label></div><div class="button-row"><button id="saveRecord" value="default" class="primary">保存</button><button id="deleteRecord" value="cancel" class="danger-button">入力を削除</button></div></form></dialog>
 
-  <script>
-  'use strict';
-
-  const KEY='attendancePwaV2';
-  const AUTH_KEY=KEY+'.authHash';
-  const SESSION_KEY=KEY+'.sessionUntil';
-  const SESSION_DAYS=30;
-  const defaults={
-    settings:{
-      fiscalYear:new Date().getFullYear(),
-      fiscalStartMonth:4,
-      fiscalStartDay:21,
-      cutoffDay:20,
-      annualHolidayTarget:110,
-      standardHours:8,
-      baseBreak:1,
-      extraBreak:.25,
-      extraBreakAfter:'18:00',
-      roundMinutes:15,
-      roundStart:'切上',
-      roundEnd:'切捨',
-      earlyStart:'05:00',
-      normalStart:'08:30',
-      normalEnd:'17:30',
-      nightStart:'22:00',
-      monthOtLimit:45,
-      yearOtLimit:360
-    },
-    records:{},
-    calendar:{}
-  };
-
-  let state=load();
-  let dialogDate='';
-  let editDate='';
-
-  const $=id=>document.getElementById(id);
-  const pad=n=>String(n).padStart(2,'0');
-
-  function load(){
-    try{
-      const raw=JSON.parse(localStorage.getItem(KEY)||'{}');
-      return {
-        settings:Object.assign({},defaults.settings,raw.settings||{}),
-        records:raw.records||{},
-        calendar:raw.calendar||{}
-      };
-    }catch{
-      return structuredClone(defaults);
-    }
-  }
-  function persist(){localStorage.setItem(KEY,JSON.stringify(state))}
-  function iso(d=new Date()){return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`}
-  function parseIso(key){const [y,m,d]=key.split('-').map(Number);return new Date(y,m-1,d)}
-  function hm(date=new Date()){return `${pad(date.getHours())}:${pad(date.getMinutes())}`}
-  function mins(t){if(!t)return null;const [h,m]=t.split(':').map(Number);return h*60+m}
-  function duration(a,b){let x=mins(a),y=mins(b);if(x==null||y==null)return 0;if(y<x)y+=1440;return (y-x)/60}
-  function roundTime(t,unit,mode){
-    if(!t)return'';
-    const v=mins(t),u=Math.max(1,Number(unit)||1);
-    let r=mode==='切上'?Math.ceil(v/u)*u:mode==='切捨'?Math.floor(v/u)*u:Math.round(v/u)*u;
-    r=((r%1440)+1440)%1440;
-    return `${pad(Math.floor(r/60))}:${pad(r%60)}`
-  }
-  function overlap(start,end,bs,be){
-    let s=mins(start),e=mins(end),a=mins(bs),b=mins(be);
-    if([s,e,a,b].some(v=>v==null))return 0;
-    if(e<s)e+=1440;if(b<=a)b+=1440;
-    let total=Math.max(0,Math.min(e,b)-Math.max(s,a));
-    total+=Math.max(0,Math.min(e,b+1440)-Math.max(s,a+1440));
-    return total/60
-  }
-  function safeDate(year,monthIndex,day){
-    const last=new Date(year,monthIndex+1,0).getDate();
-    return new Date(year,monthIndex,Math.min(Math.max(1,day),last))
-  }
-  function addDays(date,n){const d=new Date(date);d.setDate(d.getDate()+n);return d}
-  function addMonthsKeepingDay(date,n,day){
-    return safeDate(date.getFullYear(),date.getMonth()+n,day)
-  }
-  function closingDateOnOrAfter(start,cutoff){
-    const same=safeDate(start.getFullYear(),start.getMonth(),cutoff);
-    if(same>=start)return same;
-    return safeDate(start.getFullYear(),start.getMonth()+1,cutoff)
-  }
-
-  function buildPeriods(settings=state.settings){
-    const y=Number(settings.fiscalYear);
-    const month=Math.min(12,Math.max(1,Number(settings.fiscalStartMonth)||4));
-    const day=Math.min(31,Math.max(1,Number(settings.fiscalStartDay)||21));
-    const cutoff=Math.min(31,Math.max(1,Number(settings.cutoffDay)||20));
-    const periods=[];
-    let start=safeDate(y,month-1,day);
-    for(let i=0;i<12;i++){
-      const end=closingDateOnOrAfter(start,cutoff);
-      periods.push({
-        index:i,
-        start:new Date(start),
-        end:new Date(end),
-        label:`${start.getMonth()+1}月度`,
-        range:`${start.getFullYear()}/${start.getMonth()+1}/${start.getDate()}～${end.getFullYear()}/${end.getMonth()+1}/${end.getDate()}`
-      });
-      start=addDays(end,1);
-    }
-    return periods
-  }
-  function fiscalBounds(){
-    const periods=buildPeriods();
-    return [periods[0].start,periods[periods.length-1].end]
-  }
-  function periodForDate(date){
-    return buildPeriods().find(p=>date>=p.start&&date<=p.end)||null
-  }
-  function fiscalMonthIndex(date){
-    const p=periodForDate(date);
-    return p?p.index:-1
-  }
-  function allKeys(){
-    const [a,b]=fiscalBounds(),arr=[];
-    for(let d=new Date(a);d<=b;d.setDate(d.getDate()+1))arr.push(iso(d));
-    return arr
-  }
-
-  function defaultHoliday(date){
-    const day=date.getDay();
-    if(day===0)return{type:'法定休日',name:''};
-    if(day===6)return{type:'所定休日',name:''};
-    return{type:'勤務日',name:''}
-  }
-  function holidayFor(key){
-    return state.calendar[key]||defaultHoliday(parseIso(key))
-  }
-
-  function calcRecord(key,rec={}){
-    const s=state.settings;
-    const rs=roundTime(rec.start,s.roundMinutes,s.roundStart);
-    const re=roundTime(rec.end,s.roundMinutes,s.roundEnd);
-    const isWork=['出勤','休日出勤'].includes(rec.type);
-    const extra=(rec.end&&rec.start&&(mins(rec.end)<mins(rec.start)||mins(rec.end)>=mins(s.extraBreakAfter)))?Number(s.extraBreak):0;
-    const br=isWork?Number(s.baseBreak)+extra:0;
-    const outside=duration(rec.out,rec.back);
-    const gross=duration(rs,re);
-    const work=Math.max(0,gross-br-outside);
-    const standard=rec.type==='出勤'?Number(s.standardHours):0;
-    const overtime=Math.max(0,work-standard);
-    let early=overlap(rs,re,s.earlyStart,s.normalStart);
-    let evening=overlap(rs,re,s.normalEnd,s.nightStart);
-    let night=overlap(rs,re,s.nightStart,s.earlyStart);
-    if(rec.out&&rec.back){
-      early=Math.max(0,early-overlap(rec.out,rec.back,s.earlyStart,s.normalStart));
-      evening=Math.max(0,evening-overlap(rec.out,rec.back,s.normalEnd,s.nightStart));
-      night=Math.max(0,night-overlap(rec.out,rec.back,s.nightStart,s.earlyStart))
-    }
-    const hol=holidayFor(key);
-    const holidayWork=isWork&&hol.type!=='勤務日'?work:0;
-    const compEarn=rec.type==='休日出勤'&&holidayWork>0?1:0;
-    const compUse=rec.type==='代休'?1:0;
-    return{rs,re,breakHours:br,outside,work,standard,overtime,early,evening,night,holidayWork,compEarn,compUse,hol}
-  }
-
-  function stats(){
-    let comp=0,yearOt=0,holidayWorkDays=0,planned=0;
-    const periods=buildPeriods();
-    const months=periods.map(p=>({label:p.label,range:p.range,work:0,ot:0,holidayWork:0,comp:0}));
-    for(const key of allKeys()){
-      const rec=state.records[key]||{};
-      const c=calcRecord(key,rec);
-      if(c.hol.type!=='勤務日')planned++;
-      comp+=c.compEarn-c.compUse;
-      yearOt+=c.overtime;
-      if(c.compEarn)holidayWorkDays++;
-      const i=fiscalMonthIndex(parseIso(key));
-      if(i>=0){
-        months[i].work+=c.work;
-        months[i].ot+=c.overtime;
-        months[i].holidayWork+=c.compEarn;
-        months[i].comp=comp
-      }
-    }
-    const compUse=Object.values(state.records).filter(r=>r.type==='代休').length;
-    return{comp,yearOt,holidayWorkDays,planned,actualHoliday:planned-holidayWorkDays+compUse,months}
-  }
-  function monthStats(date=new Date()){
-    const i=fiscalMonthIndex(date);
-    return i>=0?stats().months[i]:{ot:0}
-  }
-
-  function renderToday(){
-    const key=iso(),rec=state.records[key]||{type:'出勤'};
-    $('todayLabel').textContent=new Intl.DateTimeFormat('ja-JP',{dateStyle:'full'}).format(new Date());
-    $('workType').value=rec.type||'出勤';
-    ['start','end','out','back','note'].forEach(id=>$(id).value=rec[id]||'');
-    const c=calcRecord(key,rec),st=stats(),ms=monthStats();
-    $('metricComp').textContent=st.comp.toFixed(1)+'日';
-    $('metricMonthOt').textContent=ms.ot.toFixed(1)+'h';
-    $('metricYearOt').textContent=st.yearOt.toFixed(1)+'h';
-    $('todayBreak').textContent=c.breakHours.toFixed(2)+'h';
-    $('todayOutside').textContent=c.outside.toFixed(2)+'h';
-    $('todayWork').textContent=c.work.toFixed(2)+'h';
-    $('todayOt').textContent=c.overtime.toFixed(2)+'h';
-    $('todayBands').textContent=`${c.early.toFixed(2)} / ${c.evening.toFixed(2)} / ${c.night.toFixed(2)}h`;
-    const p=periodForDate(new Date());
-    $('todayPeriod').textContent=p?`${p.label}　${p.range}`:'本日は設定年度の範囲外です'
-  }
-
-  function renderDashboard(){
-    const st=stats();
-    $('dashComp').textContent=st.comp.toFixed(1)+'日';
-    $('dashPlanned').textContent=st.planned+'日';
-    $('dashHolidayWork').textContent=st.holidayWorkDays+'日';
-    $('dashActualHoliday').textContent=st.actualHoliday+'日';
-    const limit=Number(state.settings.yearOtLimit)||360;
-    const pct=Math.min(100,st.yearOt/limit*100);
-    $('yearOtBar').style.width=pct+'%';
-    $('yearOtText').textContent=`${st.yearOt.toFixed(1)} / ${limit} h（残り ${(limit-st.yearOt).toFixed(1)} h）`;
-    $('monthRows').innerHTML=st.months.map(m=>`<tr><td>${m.label}<br><small>${m.range}</small></td><td>${m.work.toFixed(1)}</td><td>${m.ot.toFixed(1)}</td><td>${m.holidayWork}</td><td>${m.comp.toFixed(1)}</td></tr>`).join('')
-  }
-
-  function renderCalendar(){
-    const val=$('calendarMonth').value||iso().slice(0,7);
-    $('calendarMonth').value=val;
-    const [y,m]=val.split('-').map(Number),first=new Date(y,m-1,1),start=new Date(y,m-1,1-first.getDay()),cells=[];
-    for(let i=0;i<42;i++){
-      const d=new Date(start);d.setDate(start.getDate()+i);
-      const key=iso(d),h=holidayFor(key);
-      const cls=d.getMonth()!==m-1?'outside':h.type==='勤務日'?'work':h.type==='会社休業日'?'company':'holiday';
-      cells.push(`<button class="day ${cls}" data-date="${key}"><b>${d.getDate()}</b><small>${h.name||h.type}</small></button>`)
-    }
-    $('calendarGrid').innerHTML=cells.join('');
-    document.querySelectorAll('.day').forEach(b=>b.addEventListener('click',()=>openHoliday(b.dataset.date)))
-  }
-
-  function renderPeriodSelect(){
-    const periods=buildPeriods();
-    const current=fiscalMonthIndex(new Date());
-    const previous=$('ledgerPeriod').value;
-    $('ledgerPeriod').innerHTML=periods.map(p=>`<option value="${p.index}">${p.label}（${p.range}）</option>`).join('');
-    if(previous!==''&&periods[Number(previous)])$('ledgerPeriod').value=previous;
-    else $('ledgerPeriod').value=String(current>=0?current:0)
-  }
-
-  function renderLedger(){
-    renderPeriodSelect();
-    const periods=buildPeriods();
-    const p=periods[Number($('ledgerPeriod').value)||0];
-    $('ledgerPeriodText').textContent=`${p.label}　${p.range}`;
-    $('ledgerRows').innerHTML='';
-    let comp=0;
-    for(const key of allKeys()){
-      const c=calcRecord(key,state.records[key]||{});
-      comp+=c.compEarn-c.compUse;
-      const d=parseIso(key);
-      if(d>=p.start&&d<=p.end){
-        const r=state.records[key]||{};
-        const tr=document.createElement('tr');
-        tr.className='ledger-row type-'+(r.type||'');
-        tr.dataset.date=key;
-        tr.innerHTML=`<td>${key.slice(5)}（${['日','月','火','水','木','金','土'][d.getDay()]}）</td>
-          <td>${holidayFor(key).type}</td><td>${r.type||''}</td><td>${r.start||''}</td><td>${r.end||''}</td>
-          <td>${c.work.toFixed(2)}</td><td>${c.overtime.toFixed(2)}</td><td>${comp.toFixed(1)}</td>`;
-        tr.addEventListener('click',()=>openRecord(key));
-        $('ledgerRows').appendChild(tr)
-      }
-    }
-  }
-
-  function renderSettings(){
-    Object.keys(state.settings).forEach(k=>{const el=$(k);if(el)el.value=state.settings[k]});
-    renderPeriodPreview()
-  }
-  function renderPeriodPreview(){
-    const temp=Object.assign({},state.settings,{
-      fiscalYear:Number($('fiscalYear').value)||state.settings.fiscalYear,
-      fiscalStartMonth:Number($('fiscalStartMonth').value)||4,
-      fiscalStartDay:Number($('fiscalStartDay').value)||21,
-      cutoffDay:Number($('cutoffDay').value)||20
-    });
-    const p=buildPeriods(temp);
-    $('periodPreview').textContent=`第1月度：${p[0].label}　${p[0].range}　／　第12月度：${p[11].label}　${p[11].range}`;
-    const expected=(Number(temp.cutoffDay)%31)+1;
-    $('periodWarning').textContent=Number(temp.fiscalStartDay)===expected||Number(temp.cutoffDay)===31?'':`期開始日と締め日の翌日が一致していません。設定自体は使用できますが、第1月度だけ通常より短い／長い期間になる場合があります。`
-  }
-  function renderAll(){
-    renderToday();renderDashboard();renderCalendar();renderLedger();renderSettings()
-  }
-
-  function openHoliday(key){
-    dialogDate=key;
-    const h=holidayFor(key);
-    $('holidayDateLabel').textContent=key;
-    $('holidayType').value=h.type;
-    $('holidayName').value=h.name||'';
-    $('holidayDialog').showModal()
-  }
-  function openRecord(key){
-    editDate=key;
-    const r=state.records[key]||{type:holidayFor(key).type==='勤務日'?'出勤':'公休'};
-    const p=periodForDate(parseIso(key));
-    $('editDateLabel').textContent=`${key}　${p?p.label+'（'+p.range+'）':''}`;
-    $('editType').value=r.type||'出勤';
-    $('editStart').value=r.start||'';
-    $('editEnd').value=r.end||'';
-    $('editOut').value=r.out||'';
-    $('editBack').value=r.back||'';
-    $('editNote').value=r.note||'';
-    $('recordDialog').showModal()
-  }
-
-  function saveToday(){
-    const key=iso();
-    state.records[key]={
-      type:$('workType').value,start:$('start').value,end:$('end').value,
-      out:$('out').value,back:$('back').value,note:$('note').value,
-      updatedAt:new Date().toISOString()
-    };
-    persist();renderAll();
-    $('saveMessage').textContent='保存しました';
-    setTimeout(()=>$('saveMessage').textContent='',1800)
-  }
-  function saveEditedRecord(){
-    if(!editDate)return;
-    state.records[editDate]={
-      type:$('editType').value,start:$('editStart').value,end:$('editEnd').value,
-      out:$('editOut').value,back:$('editBack').value,note:$('editNote').value,
-      updatedAt:new Date().toISOString()
-    };
-    persist();renderAll()
-  }
-  function deleteEditedRecord(){
-    if(!editDate)return;
-    if(confirm(`${editDate} の入力を削除しますか？`)){
-      delete state.records[editDate];
-      persist();renderAll()
-    }
-  }
-  function saveSettings(){
-    Object.keys(state.settings).forEach(k=>{
-      const el=$(k);if(!el)return;
-      state.settings[k]=el.type==='number'?Number(el.value):el.value
-    });
-    persist();renderAll();alert('設定を保存しました')
-  }
-  function download(name,text,type){
-    const a=document.createElement('a');
-    a.href=URL.createObjectURL(new Blob([text],{type}));
-    a.download=name;a.click();URL.revokeObjectURL(a.href)
-  }
-  function exportCsv(){
-    const rows=[['日付','月度','期間','勤務区分','出勤','退勤','外出','戻り','備考']];
-    Object.entries(state.records).sort().forEach(([k,r])=>{
-      const p=periodForDate(parseIso(k));
-      rows.push([k,p?.label||'',p?.range||'',r.type||'',r.start||'',r.end||'',r.out||'',r.back||'',r.note||''])
-    });
-    download('attendance.csv','\ufeff'+rows.map(r=>r.map(v=>`"${String(v).replaceAll('"','""')}"`).join(',')).join('\n'),'text/csv')
-  }
-
-
-  async function sha256(text){
-    const data=new TextEncoder().encode(text);
-    const hash=await crypto.subtle.digest('SHA-256',data);
-    return [...new Uint8Array(hash)].map(b=>b.toString(16).padStart(2,'0')).join('')
-  }
-  function sessionValid(){
-    return Number(localStorage.getItem(SESSION_KEY)||0)>Date.now()
-  }
-  function showLock(){
-    const hasPassword=Boolean(localStorage.getItem(AUTH_KEY));
-    $('lockScreen').hidden=false;
-    $('confirmPasswordWrap').hidden=hasPassword;
-    $('lockDescription').textContent=hasPassword
-      ?'パスワードを入力してください。'
-      :'初回パスワードを設定してください。';
-    $('loginButton').textContent=hasPassword?'ログイン':'パスワードを設定';
-    $('loginPassword').value='';
-    $('confirmPassword').value='';
-    $('loginMessage').textContent=''
-  }
-  function unlock(){
-    $('lockScreen').hidden=true;
-    renderAll()
-  }
-  async function loginOrSetup(){
-    const password=$('loginPassword').value;
-    const saved=localStorage.getItem(AUTH_KEY);
-    $('loginMessage').textContent='';
-    if(password.length<4){
-      $('loginMessage').textContent='4文字以上で入力してください。';
-      return
-    }
-    if(!saved){
-      if(password!==$('confirmPassword').value){
-        $('loginMessage').textContent='確認用パスワードが一致しません。';
-        return
-      }
-      localStorage.setItem(AUTH_KEY,await sha256(password))
-    }else if(await sha256(password)!==saved){
-      $('loginMessage').textContent='パスワードが違います。';
-      return
-    }
-    localStorage.setItem(SESSION_KEY,String(Date.now()+SESSION_DAYS*86400000));
-    unlock()
-  }
-  function logout(){
-    localStorage.removeItem(SESSION_KEY);
-    showLock()
-  }
-
-  function normalizeHeader(value){
-    return String(value??'').trim().replace(/\s+/g,'').replace(/[（）()]/g,'')
-  }
-  const headerAliases={
-    date:['日付','年月日','勤務日'],
-    type:['勤務区分','区分','勤怠区分'],
-    start:['出勤','出勤時刻','始業','始業時刻'],
-    end:['退勤','退勤時刻','終業','終業時刻'],
-    out:['外出','外出時刻'],
-    back:['戻り','戻り時刻','帰社','帰社時刻'],
-    note:['備考','摘要','メモ']
-  };
-  function detectHeaderRow(rows){
-    for(let i=0;i<Math.min(rows.length,30);i++){
-      const normalized=(rows[i]||[]).map(normalizeHeader);
-      const hasDate=headerAliases.date.some(x=>normalized.includes(x));
-      const hasType=headerAliases.type.some(x=>normalized.includes(x));
-      const hasStart=headerAliases.start.some(x=>normalized.includes(x));
-      if(hasDate&&(hasType||hasStart))return i
-    }
-    return -1
-  }
-  function mapColumns(header){
-    const normalized=header.map(normalizeHeader);
-    const result={};
-    for(const [key,aliases] of Object.entries(headerAliases)){
-      result[key]=normalized.findIndex(h=>aliases.includes(h))
-    }
-    return result
-  }
-  function excelDateToIso(value){
-    if(value==null||value==='')return'';
-    if(value instanceof Date&&!isNaN(value))return iso(value);
-    if(typeof value==='number'){
-      const p=XLSX.SSF.parse_date_code(value);
-      if(p)return `${p.y}-${pad(p.m)}-${pad(p.d)}`
-    }
-    const s=String(value).trim();
-    const m=s.match(/^(\d{4})[\/\-.年](\d{1,2})[\/\-.月](\d{1,2})日?$/);
-    if(m)return `${m[1]}-${pad(m[2])}-${pad(m[3])}`;
-    const d=new Date(s);
-    return isNaN(d)?'':iso(d)
-  }
-  function excelTimeToHm(value){
-    if(value==null||value==='')return'';
-    if(value instanceof Date&&!isNaN(value))return `${pad(value.getHours())}:${pad(value.getMinutes())}`;
-    if(typeof value==='number'){
-      const total=Math.round((value%1)*1440);
-      return `${pad(Math.floor(total/60)%24)}:${pad(total%60)}`
-    }
-    const s=String(value).trim();
-    const m=s.match(/(\d{1,2}):(\d{2})/);
-    return m?`${pad(m[1])}:${m[2]}`:''
-  }
-  async function importWorkbook(file){
-    $('importResult').textContent='読み込み中…';
-    $('importErrors').textContent='';
-    try{
-      if(typeof XLSX==='undefined')throw new Error('Excel読込ライブラリを読み込めません。通信状態を確認してください。');
-      const data=await file.arrayBuffer();
-      const book=XLSX.read(data,{type:'array',cellDates:true});
-      let selected=null;
-      for(const name of book.SheetNames){
-        const rows=XLSX.utils.sheet_to_json(book.Sheets[name],{header:1,defval:'',raw:true});
-        const headerRow=detectHeaderRow(rows);
-        if(headerRow>=0){selected={name,rows,headerRow};break}
-      }
-      if(!selected)throw new Error('「日付」と「勤務区分」または「出勤」を含む見出し行が見つかりません。');
-      const header=selected.rows[selected.headerRow];
-      const columns=mapColumns(header);
-      if(columns.date<0)throw new Error('日付列が見つかりません。');
-      const policy=$('importPolicy').value;
-      let imported=0,skipped=0,overwritten=0;
-      const errors=[];
-      for(let i=selected.headerRow+1;i<selected.rows.length;i++){
-        const row=selected.rows[i];
-        const date=excelDateToIso(row[columns.date]);
-        if(!date){
-          if(row.some(v=>String(v).trim()!==''))errors.push(`${i+1}行目：日付を判定できません`);
-          continue
-        }
-        const existing=state.records[date];
-        if(existing&&policy==='skip'){skipped++;continue}
-        const type=columns.type>=0?String(row[columns.type]||'').trim():'';
-        const record={
-          type:type||existing?.type||'出勤',
-          start:columns.start>=0?excelTimeToHm(row[columns.start]):existing?.start||'',
-          end:columns.end>=0?excelTimeToHm(row[columns.end]):existing?.end||'',
-          out:columns.out>=0?excelTimeToHm(row[columns.out]):existing?.out||'',
-          back:columns.back>=0?excelTimeToHm(row[columns.back]):existing?.back||'',
-          note:columns.note>=0?String(row[columns.note]||'').trim():existing?.note||'',
-          updatedAt:new Date().toISOString(),
-          importedFrom:file.name
-        };
-        if(existing)overwritten++;
-        state.records[date]=record;
-        imported++
-      }
-      persist();renderAll();
-      $('importResult').textContent=`${selected.name}：${imported}件取り込み、${overwritten}件上書き、${skipped}件スキップ`;
-      $('importErrors').innerHTML=errors.length
-        ?`<b>確認事項 ${errors.length}件</b><br>${errors.slice(0,20).map(x=>x.replaceAll('<','&lt;')).join('<br>')}${errors.length>20?'<br>…':''}`
-        :'エラーはありません。'
-    }catch(err){
-      $('importResult').textContent='取込みに失敗しました。';
-      $('importErrors').textContent=err.message
-    }finally{
-      $('importExcel').value=''
-    }
-  }
-
-  function setup(){
-    document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>{
-      document.querySelectorAll('.tab,.view').forEach(x=>x.classList.remove('active'));
-      b.classList.add('active');$('view-'+b.dataset.view).classList.add('active');
-      if(b.dataset.view==='ledger')renderLedger()
-    }));
-    document.querySelectorAll('.now').forEach(b=>b.addEventListener('click',e=>{
-      e.preventDefault();$(b.dataset.target).value=hm();renderToday()
-    }));
-    ['workType','start','end','out','back'].forEach(id=>$(id).addEventListener('change',renderToday));
-    ['fiscalYear','fiscalStartMonth','fiscalStartDay','cutoffDay'].forEach(id=>$(id).addEventListener('input',renderPeriodPreview));
-    $('loginButton').addEventListener('click',loginOrSetup);
-    $('loginPassword').addEventListener('keydown',e=>{if(e.key==='Enter')loginOrSetup()});
-    $('confirmPassword').addEventListener('keydown',e=>{if(e.key==='Enter')loginOrSetup()});
-    $('logoutButton').addEventListener('click',logout);
-    $('importExcel').addEventListener('change',e=>{const f=e.target.files[0];if(f)importWorkbook(f)});
-    $('saveToday').addEventListener('click',saveToday);
-    $('calendarMonth').addEventListener('change',renderCalendar);
-    $('ledgerPeriod').addEventListener('change',renderLedger);
-    $('saveHoliday').addEventListener('click',()=>{
-      state.calendar[dialogDate]={type:$('holidayType').value,name:$('holidayName').value};
-      persist();renderAll()
-    });
-    $('saveRecord').addEventListener('click',saveEditedRecord);
-    $('deleteRecord').addEventListener('click',deleteEditedRecord);
-    $('saveSettings').addEventListener('click',saveSettings);
-    $('exportJson').addEventListener('click',()=>download('attendance-backup.json',JSON.stringify(state,null,2),'application/json'));
-    $('importJson').addEventListener('change',e=>{
-      const f=e.target.files[0];if(!f)return;
-      const r=new FileReader();
-      r.onload=()=>{
-        const incoming=JSON.parse(r.result);
-        state={
-          settings:Object.assign({},defaults.settings,incoming.settings||{}),
-          records:incoming.records||{},
-          calendar:incoming.calendar||{}
-        };
-        persist();renderAll();alert('復元しました')
-      };
-      r.readAsText(f)
-    });
-    $('exportCsv').addEventListener('click',exportCsv);
-    $('resetData').addEventListener('click',()=>{
-      if(confirm('すべてのデータを削除しますか？')){
-        state=structuredClone(defaults);persist();renderAll()
-      }
-    });
-    if(sessionValid())unlock();else showLock()
-  }
-  setup();
-  </script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
