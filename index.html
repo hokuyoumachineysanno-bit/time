@@ -8,7 +8,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="styles.css">
-  <title>勤怠管理</title>
+  <title>勤怠管理 v5</title>
 </head>
 <body>
   <section id="lockScreen" class="lock-screen">
@@ -24,7 +24,7 @@
   </section>
 
   <header class="app-header">
-    <div><h1>勤怠管理</h1><p id="todayLabel"></p></div>
+    <div><h1>勤怠管理 <small class="version-badge">v5.0</small></h1><p id="todayLabel"></p></div>
     <div class="header-actions"><button id="installBtn" class="ghost" hidden>追加</button><button id="logoutButton" class="ghost">ログアウト</button></div>
   </header>
 
@@ -93,7 +93,8 @@
       <article class="card">
         <div class="section-head"><h2>勤怠台帳・直接編集</h2><select id="ledgerPeriod"></select></div>
         <p class="period-note" id="ledgerPeriodText"></p>
-        <p class="hint">各行に直接入力し、右端の「保存」を押してください。過去日も未入力日も同じ方法で登録できます。</p>
+        <p class="hint">各行に直接入力し、右端の「保存」を押してください。保存後は「保存済」と表示されます。</p>
+        <div class="button-row"><button id="saveAllLedger" type="button" class="secondary">表示中の変更を一括保存</button><button id="reloadLedger" type="button" class="secondary">保存データを再読込</button></div>
         <p id="ledgerSaveMessage" class="message"></p>
         <div class="table-wrap ledger-edit-wrap">
           <table class="ledger-edit-table">
@@ -148,6 +149,6 @@
   <dialog id="holidayDialog"><form method="dialog"><div class="dialog-title"><h2 id="holidayDateLabel">休日設定</h2><button value="cancel" class="secondary">閉じる</button></div><label>区分<select id="holidayType"><option>勤務日</option><option>所定休日</option><option>法定休日</option></select></label><label>名称<input id="holidayName" placeholder="祝日、夏季休暇など"></label><button id="saveHoliday" value="default" class="primary">保存</button></form></dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="app.js"></script>
+  <script src="app.js?v=5.0.0"></script>
 </body>
 </html>
