@@ -93,8 +93,26 @@
       <article class="card">
         <div class="section-head"><h2>勤怠台帳</h2><select id="ledgerPeriod"></select></div>
         <p class="period-note" id="ledgerPeriodText"></p>
-        <p class="hint">行をタップすると、過去の勤務区分・時刻・外出・備考を直接編集できます。</p>
-        <div class="table-wrap"><table><thead><tr><th>日付</th><th>休日区分</th><th>勤務区分</th><th>出勤</th><th>退勤</th><th>就労</th><th>残業</th><th>代休残</th></tr></thead><tbody id="ledgerRows"></tbody></table></div>
+        <p class="hint">各行の「編集」を押すと、過去の日付を直接入力・修正できます。行そのものを押しても編集できます。</p>
+        <div class="table-wrap"><table><thead><tr><th>日付</th><th>休日区分</th><th>勤務区分</th><th>出勤</th><th>退勤</th><th>就労</th><th>残業</th><th>代休残</th><th>操作</th></tr></thead><tbody id="ledgerRows"></tbody></table></div>
+      </article>
+
+      <article id="ledgerEditor" class="card editor-card" hidden>
+        <div class="section-head"><h2>過去台帳を編集</h2><button id="closeLedgerEditor" class="secondary" type="button">閉じる</button></div>
+        <p id="editDateLabel" class="period-note"></p>
+        <div class="dialog-grid">
+          <label class="full">勤務区分<select id="editType"><option>出勤</option><option>休日出勤</option><option>公休</option><option>有休</option><option>代休</option><option>特休</option></select></label>
+          <label>出勤<input id="editStart" type="time"></label>
+          <label>退勤<input id="editEnd" type="time"></label>
+          <label>外出<input id="editOut" type="time"></label>
+          <label>戻り<input id="editBack" type="time"></label>
+          <label class="full">備考<textarea id="editNote" rows="2"></textarea></label>
+        </div>
+        <div class="button-row">
+          <button id="saveRecord" type="button" class="primary">この日の入力を保存</button>
+          <button id="deleteRecord" type="button" class="danger-button">この日の入力を削除</button>
+        </div>
+        <p id="editSaveMessage" class="message"></p>
       </article>
     </section>
 
@@ -140,8 +158,6 @@
   </main>
 
   <dialog id="holidayDialog"><form method="dialog"><div class="dialog-title"><h2 id="holidayDateLabel">休日設定</h2><button value="cancel" class="secondary">閉じる</button></div><label>区分<select id="holidayType"><option>勤務日</option><option>所定休日</option><option>法定休日</option></select></label><label>名称<input id="holidayName" placeholder="祝日、夏季休暇など"></label><button id="saveHoliday" value="default" class="primary">保存</button></form></dialog>
-
-  <dialog id="recordDialog"><form method="dialog"><div class="dialog-title"><h2>勤怠を編集</h2><button value="cancel" class="secondary">閉じる</button></div><p id="editDateLabel" class="period-note"></p><div class="dialog-grid"><label class="full">勤務区分<select id="editType"><option>出勤</option><option>休日出勤</option><option>公休</option><option>有休</option><option>代休</option><option>特休</option></select></label><label>出勤<input id="editStart" type="time"></label><label>退勤<input id="editEnd" type="time"></label><label>外出<input id="editOut" type="time"></label><label>戻り<input id="editBack" type="time"></label><label class="full">備考<textarea id="editNote" rows="2"></textarea></label></div><div class="button-row"><button id="saveRecord" value="default" class="primary">保存</button><button id="deleteRecord" value="cancel" class="danger-button">入力を削除</button></div></form></dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="app.js"></script>
