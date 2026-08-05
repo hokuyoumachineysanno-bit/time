@@ -91,28 +91,16 @@
 
     <section id="view-ledger" class="view">
       <article class="card">
-        <div class="section-head"><h2>勤怠台帳</h2><select id="ledgerPeriod"></select></div>
+        <div class="section-head"><h2>勤怠台帳・直接編集</h2><select id="ledgerPeriod"></select></div>
         <p class="period-note" id="ledgerPeriodText"></p>
-        <p class="hint">各行の「編集」を押すと、過去の日付を直接入力・修正できます。行そのものを押しても編集できます。</p>
-        <div class="table-wrap"><table><thead><tr><th>日付</th><th>休日区分</th><th>勤務区分</th><th>出勤</th><th>退勤</th><th>就労</th><th>残業</th><th>代休残</th><th>操作</th></tr></thead><tbody id="ledgerRows"></tbody></table></div>
-      </article>
-
-      <article id="ledgerEditor" class="card editor-card" hidden>
-        <div class="section-head"><h2>過去台帳を編集</h2><button id="closeLedgerEditor" class="secondary" type="button">閉じる</button></div>
-        <p id="editDateLabel" class="period-note"></p>
-        <div class="dialog-grid">
-          <label class="full">勤務区分<select id="editType"><option>出勤</option><option>休日出勤</option><option>公休</option><option>有休</option><option>代休</option><option>特休</option></select></label>
-          <label>出勤<input id="editStart" type="time"></label>
-          <label>退勤<input id="editEnd" type="time"></label>
-          <label>外出<input id="editOut" type="time"></label>
-          <label>戻り<input id="editBack" type="time"></label>
-          <label class="full">備考<textarea id="editNote" rows="2"></textarea></label>
+        <p class="hint">各行に直接入力し、右端の「保存」を押してください。過去日も未入力日も同じ方法で登録できます。</p>
+        <p id="ledgerSaveMessage" class="message"></p>
+        <div class="table-wrap ledger-edit-wrap">
+          <table class="ledger-edit-table">
+            <thead><tr><th>日付</th><th>休日区分</th><th>勤務区分</th><th>出勤</th><th>退勤</th><th>外出</th><th>戻り</th><th>就労</th><th>残業</th><th>代休残</th><th>備考</th><th>操作</th></tr></thead>
+            <tbody id="ledgerRows"></tbody>
+          </table>
         </div>
-        <div class="button-row">
-          <button id="saveRecord" type="button" class="primary">この日の入力を保存</button>
-          <button id="deleteRecord" type="button" class="danger-button">この日の入力を削除</button>
-        </div>
-        <p id="editSaveMessage" class="message"></p>
       </article>
     </section>
 
