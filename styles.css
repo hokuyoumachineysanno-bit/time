@@ -112,3 +112,66 @@
   .ledger-edit-table th:first-child,
   .ledger-edit-table td:first-child{min-width:96px}
 }
+
+
+/* ===== v5.2 mobile ledger cards ===== */
+.mobile-ledger,.mobile-ledger-hint{display:none}
+.period-controls{display:flex;align-items:center;gap:7px}
+.period-controls select{min-width:250px;margin:0}
+.secondary.compact{padding:9px 12px;min-width:44px}
+.ledger-cards{display:none}
+.ledger-card{
+  border:1px solid var(--border);
+  border-radius:15px;
+  padding:14px;
+  margin:0 0 12px;
+  background:#fff;
+  box-shadow:0 2px 8px rgba(23,50,77,.06);
+}
+.ledger-card.type-出勤{border-left:5px solid #70ad47}
+.ledger-card.type-休日出勤{border-left:5px solid #c0504d}
+.ledger-card.type-公休{border-left:5px solid #999}
+.ledger-card.type-有休{border-left:5px solid #d6a500}
+.ledger-card.type-代休{border-left:5px solid #8064a2}
+.ledger-card.dirty{box-shadow:inset 4px 0 #f0ad4e,0 2px 8px rgba(23,50,77,.08)}
+.ledger-card.saved-ok{box-shadow:inset 4px 0 #2e8b57,0 2px 8px rgba(23,50,77,.08)}
+.ledger-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:12px}
+.ledger-card-date{font-size:1.08rem;font-weight:800}
+.ledger-card-holiday{font-size:.82rem;color:var(--muted);margin-top:3px}
+.ledger-card-status{font-size:.78rem;padding:4px 8px;border-radius:999px;background:#eef3f7;color:var(--muted)}
+.ledger-card-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ledger-card label{margin:0;font-size:.82rem;color:var(--muted)}
+.ledger-card input,.ledger-card select,.ledger-card textarea{
+  margin-top:4px;padding:11px;border-radius:10px;font-size:16px;
+}
+.ledger-card .full{grid-column:1/-1}
+.ledger-card textarea{resize:vertical;min-height:62px}
+.ledger-card-metrics{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin:12px 0;
+}
+.ledger-card-metric{background:var(--accent);border-radius:10px;padding:9px 5px;text-align:center}
+.ledger-card-metric span{display:block;font-size:.72rem;color:var(--muted)}
+.ledger-card-metric strong{font-size:1rem}
+.ledger-card-actions{display:grid;grid-template-columns:2fr 1fr;gap:8px}
+.ledger-card .save-ledger-row{border:0;border-radius:10px;padding:12px;background:var(--blue);color:#fff;font-weight:800}
+.ledger-card .save-ledger-row.saved{background:#2e8b57}
+.ledger-card .clear-ledger-row{border:1px solid #d7a6a6;border-radius:10px;padding:12px;background:#fff;color:#9c0006;font-weight:700}
+
+@media(max-width:720px){
+  main{padding-left:8px;padding-right:8px}
+  .app-header{padding:10px 12px}
+  .app-header h1{font-size:1.05rem}
+  .header-actions .ghost{padding:7px 9px;font-size:.8rem}
+  .tabs{grid-template-columns:repeat(5,minmax(72px,1fr));overflow-x:auto;top:59px}
+  .tab{padding:11px 7px;white-space:nowrap}
+  #view-ledger .card{padding:12px 10px}
+  .ledger-period-head{display:block}
+  .ledger-period-head h2{margin-bottom:10px}
+  .period-controls{width:100%}
+  .period-controls select{flex:1;min-width:0;font-size:.9rem}
+  .desktop-ledger,.desktop-ledger-hint{display:none!important}
+  .mobile-ledger,.mobile-ledger-hint{display:block}
+  .ledger-cards{display:block}
+  #saveAllLedger,#reloadLedger{font-size:.86rem;padding:9px 10px}
+  .button-row{gap:6px}
+}
