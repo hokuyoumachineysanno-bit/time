@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#17324d">
   <meta name="description" content="個人・小規模事業者向け勤怠管理">
   <title>勤怠管理</title>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <style>
     :root{
       --navy:#17324d;--blue:#2f75b5;--bg:#f4f6f8;--card:#fff;
@@ -57,6 +58,13 @@
     dialog form{padding:18px}.dialog-title{display:flex;justify-content:space-between;align-items:center;gap:12px}.dialog-title h2{margin:0}
     .dialog-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}.dialog-grid .full{grid-column:1/-1}
     .type-出勤{background:#e2f0d9}.type-休日出勤{background:#f4cccc}.type-公休{background:#e7e6e6}.type-有休{background:#fff2cc}.type-代休{background:#e4dfec}
+
+    .lock-screen{position:fixed;inset:0;z-index:100;background:linear-gradient(160deg,#17324d,#2f75b5);display:grid;place-items:center;padding:20px}
+    .lock-screen[hidden]{display:none}
+    .lock-card{width:min(92vw,420px);background:#fff;border-radius:18px;padding:22px;box-shadow:0 20px 60px #0005}
+    .lock-card h1{margin:0 0 6px}.lock-card p{color:var(--muted)}
+    .lock-card .message{margin-top:10px}
+
     @media(max-width:620px){
       .status-grid.four{grid-template-columns:1fr 1fr}.metric strong{font-size:1.1rem}
       .settings-grid,.dialog-grid{grid-template-columns:1fr}.settings-grid .full,.dialog-grid .full{grid-column:auto}
@@ -66,8 +74,21 @@
   </style>
 </head>
 <body>
+
+  <section id="lockScreen" class="lock-screen">
+    <div class="lock-card">
+      <h1>勤怠管理</h1>
+      <p id="lockDescription">パスワードを入力してください。</p>
+      <label>パスワード<input id="loginPassword" type="password" autocomplete="current-password"></label>
+      <label id="confirmPasswordWrap" hidden>確認用<input id="confirmPassword" type="password" autocomplete="new-password"></label>
+      <button id="loginButton" class="primary">ログイン</button>
+      <p id="loginMessage" class="message error"></p>
+      <p class="hint">ログイン状態はこの端末で30日間保持されます。</p>
+    </div>
+  </section>
   <header class="app-header">
     <div><h1>勤怠管理</h1><p id="todayLabel"></p></div>
+    <button id="logoutButton" class="ghost">ログアウト</button>
   </header>
 
   <main>
@@ -192,6 +213,23 @@
         <button id="saveSettings" class="primary full">設定を保存</button>
       </article>
 
+
+      <article class="card">
+        <h2>Excel／CSVから過去台帳を一括取込み</h2>
+        <p class="hint">読み込む列：日付、勤務区分、出勤、退勤、外出、戻り、備考。計算列は取込まず、現在の設定で再計算します。</p>
+        <label>重複日の扱い
+          <select id="importPolicy">
+            <option value="overwrite">既存データを上書き</option>
+            <option value="skip">既存データをスキップ</option>
+          </select>
+        </label>
+        <label class="file-button">Excel／CSVを選択
+          <input id="importExcel" type="file" accept=".xlsx,.xls,.csv">
+        </label>
+        <p id="importResult" class="message"></p>
+        <div id="importErrors" class="hint"></div>
+      </article>
+
       <article class="card">
         <h2>バックアップ</h2>
         <div class="button-row">
@@ -238,6 +276,9 @@
   'use strict';
 
   const KEY='attendancePwaV2';
+  const AUTH_KEY=KEY+'.authHash';
+  const SESSION_KEY=KEY+'.sessionUntil';
+  const SESSION_DAYS=30;
   const defaults={
     settings:{
       fiscalYear:new Date().getFullYear(),
@@ -587,6 +628,168 @@
     download('attendance.csv','\ufeff'+rows.map(r=>r.map(v=>`"${String(v).replaceAll('"','""')}"`).join(',')).join('\n'),'text/csv')
   }
 
+
+  async function sha256(text){
+    const data=new TextEncoder().encode(text);
+    const hash=await crypto.subtle.digest('SHA-256',data);
+    return [...new Uint8Array(hash)].map(b=>b.toString(16).padStart(2,'0')).join('')
+  }
+  function sessionValid(){
+    return Number(localStorage.getItem(SESSION_KEY)||0)>Date.now()
+  }
+  function showLock(){
+    const hasPassword=Boolean(localStorage.getItem(AUTH_KEY));
+    $('lockScreen').hidden=false;
+    $('confirmPasswordWrap').hidden=hasPassword;
+    $('lockDescription').textContent=hasPassword
+      ?'パスワードを入力してください。'
+      :'初回パスワードを設定してください。';
+    $('loginButton').textContent=hasPassword?'ログイン':'パスワードを設定';
+    $('loginPassword').value='';
+    $('confirmPassword').value='';
+    $('loginMessage').textContent=''
+  }
+  function unlock(){
+    $('lockScreen').hidden=true;
+    renderAll()
+  }
+  async function loginOrSetup(){
+    const password=$('loginPassword').value;
+    const saved=localStorage.getItem(AUTH_KEY);
+    $('loginMessage').textContent='';
+    if(password.length<4){
+      $('loginMessage').textContent='4文字以上で入力してください。';
+      return
+    }
+    if(!saved){
+      if(password!==$('confirmPassword').value){
+        $('loginMessage').textContent='確認用パスワードが一致しません。';
+        return
+      }
+      localStorage.setItem(AUTH_KEY,await sha256(password))
+    }else if(await sha256(password)!==saved){
+      $('loginMessage').textContent='パスワードが違います。';
+      return
+    }
+    localStorage.setItem(SESSION_KEY,String(Date.now()+SESSION_DAYS*86400000));
+    unlock()
+  }
+  function logout(){
+    localStorage.removeItem(SESSION_KEY);
+    showLock()
+  }
+
+  function normalizeHeader(value){
+    return String(value??'').trim().replace(/\s+/g,'').replace(/[（）()]/g,'')
+  }
+  const headerAliases={
+    date:['日付','年月日','勤務日'],
+    type:['勤務区分','区分','勤怠区分'],
+    start:['出勤','出勤時刻','始業','始業時刻'],
+    end:['退勤','退勤時刻','終業','終業時刻'],
+    out:['外出','外出時刻'],
+    back:['戻り','戻り時刻','帰社','帰社時刻'],
+    note:['備考','摘要','メモ']
+  };
+  function detectHeaderRow(rows){
+    for(let i=0;i<Math.min(rows.length,30);i++){
+      const normalized=(rows[i]||[]).map(normalizeHeader);
+      const hasDate=headerAliases.date.some(x=>normalized.includes(x));
+      const hasType=headerAliases.type.some(x=>normalized.includes(x));
+      const hasStart=headerAliases.start.some(x=>normalized.includes(x));
+      if(hasDate&&(hasType||hasStart))return i
+    }
+    return -1
+  }
+  function mapColumns(header){
+    const normalized=header.map(normalizeHeader);
+    const result={};
+    for(const [key,aliases] of Object.entries(headerAliases)){
+      result[key]=normalized.findIndex(h=>aliases.includes(h))
+    }
+    return result
+  }
+  function excelDateToIso(value){
+    if(value==null||value==='')return'';
+    if(value instanceof Date&&!isNaN(value))return iso(value);
+    if(typeof value==='number'){
+      const p=XLSX.SSF.parse_date_code(value);
+      if(p)return `${p.y}-${pad(p.m)}-${pad(p.d)}`
+    }
+    const s=String(value).trim();
+    const m=s.match(/^(\d{4})[\/\-.年](\d{1,2})[\/\-.月](\d{1,2})日?$/);
+    if(m)return `${m[1]}-${pad(m[2])}-${pad(m[3])}`;
+    const d=new Date(s);
+    return isNaN(d)?'':iso(d)
+  }
+  function excelTimeToHm(value){
+    if(value==null||value==='')return'';
+    if(value instanceof Date&&!isNaN(value))return `${pad(value.getHours())}:${pad(value.getMinutes())}`;
+    if(typeof value==='number'){
+      const total=Math.round((value%1)*1440);
+      return `${pad(Math.floor(total/60)%24)}:${pad(total%60)}`
+    }
+    const s=String(value).trim();
+    const m=s.match(/(\d{1,2}):(\d{2})/);
+    return m?`${pad(m[1])}:${m[2]}`:''
+  }
+  async function importWorkbook(file){
+    $('importResult').textContent='読み込み中…';
+    $('importErrors').textContent='';
+    try{
+      if(typeof XLSX==='undefined')throw new Error('Excel読込ライブラリを読み込めません。通信状態を確認してください。');
+      const data=await file.arrayBuffer();
+      const book=XLSX.read(data,{type:'array',cellDates:true});
+      let selected=null;
+      for(const name of book.SheetNames){
+        const rows=XLSX.utils.sheet_to_json(book.Sheets[name],{header:1,defval:'',raw:true});
+        const headerRow=detectHeaderRow(rows);
+        if(headerRow>=0){selected={name,rows,headerRow};break}
+      }
+      if(!selected)throw new Error('「日付」と「勤務区分」または「出勤」を含む見出し行が見つかりません。');
+      const header=selected.rows[selected.headerRow];
+      const columns=mapColumns(header);
+      if(columns.date<0)throw new Error('日付列が見つかりません。');
+      const policy=$('importPolicy').value;
+      let imported=0,skipped=0,overwritten=0;
+      const errors=[];
+      for(let i=selected.headerRow+1;i<selected.rows.length;i++){
+        const row=selected.rows[i];
+        const date=excelDateToIso(row[columns.date]);
+        if(!date){
+          if(row.some(v=>String(v).trim()!==''))errors.push(`${i+1}行目：日付を判定できません`);
+          continue
+        }
+        const existing=state.records[date];
+        if(existing&&policy==='skip'){skipped++;continue}
+        const type=columns.type>=0?String(row[columns.type]||'').trim():'';
+        const record={
+          type:type||existing?.type||'出勤',
+          start:columns.start>=0?excelTimeToHm(row[columns.start]):existing?.start||'',
+          end:columns.end>=0?excelTimeToHm(row[columns.end]):existing?.end||'',
+          out:columns.out>=0?excelTimeToHm(row[columns.out]):existing?.out||'',
+          back:columns.back>=0?excelTimeToHm(row[columns.back]):existing?.back||'',
+          note:columns.note>=0?String(row[columns.note]||'').trim():existing?.note||'',
+          updatedAt:new Date().toISOString(),
+          importedFrom:file.name
+        };
+        if(existing)overwritten++;
+        state.records[date]=record;
+        imported++
+      }
+      persist();renderAll();
+      $('importResult').textContent=`${selected.name}：${imported}件取り込み、${overwritten}件上書き、${skipped}件スキップ`;
+      $('importErrors').innerHTML=errors.length
+        ?`<b>確認事項 ${errors.length}件</b><br>${errors.slice(0,20).map(x=>x.replaceAll('<','&lt;')).join('<br>')}${errors.length>20?'<br>…':''}`
+        :'エラーはありません。'
+    }catch(err){
+      $('importResult').textContent='取込みに失敗しました。';
+      $('importErrors').textContent=err.message
+    }finally{
+      $('importExcel').value=''
+    }
+  }
+
   function setup(){
     document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>{
       document.querySelectorAll('.tab,.view').forEach(x=>x.classList.remove('active'));
@@ -598,6 +801,11 @@
     }));
     ['workType','start','end','out','back'].forEach(id=>$(id).addEventListener('change',renderToday));
     ['fiscalYear','fiscalStartMonth','fiscalStartDay','cutoffDay'].forEach(id=>$(id).addEventListener('input',renderPeriodPreview));
+    $('loginButton').addEventListener('click',loginOrSetup);
+    $('loginPassword').addEventListener('keydown',e=>{if(e.key==='Enter')loginOrSetup()});
+    $('confirmPassword').addEventListener('keydown',e=>{if(e.key==='Enter')loginOrSetup()});
+    $('logoutButton').addEventListener('click',logout);
+    $('importExcel').addEventListener('change',e=>{const f=e.target.files[0];if(f)importWorkbook(f)});
     $('saveToday').addEventListener('click',saveToday);
     $('calendarMonth').addEventListener('change',renderCalendar);
     $('ledgerPeriod').addEventListener('change',renderLedger);
@@ -629,7 +837,7 @@
         state=structuredClone(defaults);persist();renderAll()
       }
     });
-    renderAll()
+    if(sessionValid())unlock();else showLock()
   }
   setup();
   </script>
