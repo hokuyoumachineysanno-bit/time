@@ -297,3 +297,20 @@
   .cloud-status-box{grid-template-columns:1fr}
   .cloud-header-status{font-size:.68rem;padding:4px 7px}
 }
+
+
+/* ===== v6.2 sync diagnostics ===== */
+.cloud-diagnostics{
+  white-space:pre-wrap;
+  overflow-wrap:anywhere;
+  max-height:260px;
+  overflow:auto;
+  margin:12px 0 0;
+  padding:11px;
+  border:1px solid var(--border);
+  border-radius:10px;
+  background:#111827;
+  color:#e5e7eb;
+  font-size:.78rem;
+  line-height:1.55;
+}
