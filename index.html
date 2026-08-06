@@ -7,8 +7,8 @@
   <meta name="description" content="締め日連動・過去編集・Excel取込対応の勤怠管理PWA">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=5.2.0">
-  <title>勤怠管理 v5.2</title>
+  <link rel="stylesheet" href="styles.css?v=5.4.0">
+  <title>勤怠管理 v5.4</title>
 </head>
 <body>
   <section id="lockScreen" class="lock-screen">
@@ -24,7 +24,7 @@
   </section>
 
   <header class="app-header">
-    <div><h1>勤怠管理 <small class="version-badge">v5.2</small></h1><p id="todayLabel"></p></div>
+    <div><h1>勤怠管理 <small class="version-badge">v5.4</small></h1><p id="todayLabel"></p></div>
     <div class="header-actions"><button id="installBtn" class="ghost" hidden>追加</button><button id="logoutButton" class="ghost">ログアウト</button></div>
   </header>
 
@@ -141,7 +141,7 @@
 
       <article class="card">
         <h2>Excel／CSVから一括取込み</h2>
-        <p class="hint">日付、勤務区分、出勤、退勤、外出、戻り、備考を読み込み、現在の設定で再計算します。</p>
+        <p class="hint">日付、勤務区分、出勤、退勤、外出、戻り、備考を読み込み、現在の設定で再計算します。複数シートがある場合は、日付データが最も多い台帳シートを自動選択します。</p><p id="importSheetInfo" class="period-note" hidden></p>
         <label>重複日の扱い<select id="importPolicy"><option value="overwrite">既存データを上書き</option><option value="skip">既存データをスキップ</option></select></label>
         <label class="file-button">Excel／CSVを選択<input id="importExcel" type="file" accept=".xlsx,.xls,.csv"></label>
         <p id="importResult" class="message"></p><div id="importErrors" class="hint"></div>
@@ -157,6 +157,6 @@
   <dialog id="holidayDialog"><form method="dialog"><div class="dialog-title"><h2 id="holidayDateLabel">休日設定</h2><button value="cancel" class="secondary">閉じる</button></div><label>区分<select id="holidayType"><option>勤務日</option><option>所定休日</option><option>法定休日</option></select></label><label>名称<input id="holidayName" placeholder="祝日、夏季休暇など"></label><button id="saveHoliday" value="default" class="primary">保存</button></form></dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="app.js?v=5.2.0"></script>
+  <script src="app.js?v=5.4.0"></script>
 </body>
 </html>

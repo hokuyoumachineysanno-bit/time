@@ -1,7 +1,7 @@
 
 'use strict';
 const KEY='attendancePwaV5',LEGACY_KEY='attendancePwaV4',OLDER_KEY='attendancePwaV2',AUTH_KEY=KEY+'.authHash',SESSION_KEY=KEY+'.sessionUntil',SESSION_DAYS=30;
-const defaults={version:5.2,settings:{fiscalYear:new Date().getFullYear(),fiscalStartMonth:4,fiscalStartDay:21,cutoffDay:20,annualHolidayTarget:110,standardHours:8,baseBreak:1,extraBreak:.25,extraBreakAfter:'18:00',roundMinutes:15,roundStart:'切上',roundEnd:'切捨',earlyStart:'05:00',normalStart:'08:30',normalEnd:'17:30',nightStart:'22:00',monthOtLimit:45,yearOtLimit:360},records:{},calendar:{}};
+const defaults={version:5.4,settings:{fiscalYear:new Date().getFullYear(),fiscalStartMonth:4,fiscalStartDay:21,cutoffDay:20,annualHolidayTarget:110,standardHours:8,baseBreak:1,extraBreak:.25,extraBreakAfter:'18:00',roundMinutes:15,roundStart:'切上',roundEnd:'切捨',earlyStart:'05:00',normalStart:'08:30',normalEnd:'17:30',nightStart:'22:00',monthOtLimit:45,yearOtLimit:360},records:{},calendar:{}};
 let state=load(),dialogDate='',editDate='',deferredPrompt=null;
 const $=id=>document.getElementById(id),pad=n=>String(n).padStart(2,'0');
 function load(){try{const raw=JSON.parse(localStorage.getItem(KEY)||localStorage.getItem(LEGACY_KEY)||localStorage.getItem(OLDER_KEY)||'{}');return{version:5,settings:Object.assign({},defaults.settings,raw.settings||{}),records:raw.records||{},calendar:raw.calendar||{}}}catch{return structuredClone(defaults)}}
@@ -54,7 +54,7 @@ function updateLedgerCalculations(){
   }
 }
 function markRowDirty(entry){
-  entry.classList.remove('saved-ok');
+  entry.classList.remove('saved-ok','ledger-card-save-flash');
   entry.classList.add('dirty');
   const b=entry.querySelector('.save-ledger-row');
   const status=entry.querySelector('.ledger-card-status');
@@ -82,12 +82,39 @@ function periodCompBalances(){
   }
   return balances
 }
+function holidayClass(type){
+  if(type==='所定休日')return'holiday-scheduled';
+  if(type==='法定休日')return'holiday-statutory';
+  if(type==='会社休業日')return'holiday-company';
+  return'holiday-workday'
+}
+function calendarBadge(type){
+  const map={
+    '勤務日':['calendar-workday','勤務日'],
+    '所定休日':['calendar-scheduled','所定休日'],
+    '法定休日':['calendar-statutory','法定休日'],
+    '会社休業日':['calendar-company','会社休業日']
+  };
+  const [cls,label]=map[type]||map['勤務日'];
+  return`<span class="status-badge ${cls}">会社：${label}</span>`
+}
+function workBadge(type){
+  if(!type)return'<span class="status-badge work-empty">実績：未入力</span>';
+  return`<span class="status-badge work-${type}">実績：${type}</span>`
+}
+function compWarningBadge(c){
+  return c.compEarn>0?'<span class="status-badge comp-warning">代休 +1日</span>':''
+}
 function desktopLedgerRow(k,d,r,c,comp){
-  const tr=document.createElement('tr');
-  tr.dataset.date=k;tr.dataset.ledgerEntry='1';tr.className='type-'+(r.type||'');
+  const hol=holidayFor(k),tr=document.createElement('tr');
+  tr.dataset.date=k;tr.dataset.ledgerEntry='1';
+  tr.className=`${holidayClass(hol.type)} type-${r.type||''}`;
   tr.innerHTML=`
-    <td>${k.slice(5)}（${['日','月','火','水','木','金','土'][d.getDay()]}）</td>
-    <td>${holidayFor(k).type}</td>
+    <td>
+      ${k.slice(5)}（${['日','月','火','水','木','金','土'][d.getDay()]}）
+      <div class="status-badges">${calendarBadge(hol.type)}${workBadge(r.type||'')}${compWarningBadge(c)}</div>
+    </td>
+    <td>${hol.type}</td>
     <td><select data-field="type">${ledgerTypeOptions(r.type||'')}</select></td>
     <td><input data-field="start" type="time" value="${escapeAttr(r.start||'')}"></td>
     <td><input data-field="end" type="time" value="${escapeAttr(r.end||'')}"></td>
@@ -101,14 +128,14 @@ function desktopLedgerRow(k,d,r,c,comp){
   return tr
 }
 function mobileLedgerCard(k,d,r,c,comp){
-  const article=document.createElement('article');
+  const hol=holidayFor(k),article=document.createElement('article');
   article.dataset.date=k;article.dataset.ledgerEntry='1';
-  article.className='ledger-card type-'+(r.type||'');
+  article.className=`ledger-card ${holidayClass(hol.type)} type-${r.type||''}`;
   article.innerHTML=`
     <div class="ledger-card-head">
       <div>
         <div class="ledger-card-date">${k.slice(5).replace('-','/')}（${['日','月','火','水','木','金','土'][d.getDay()]}）</div>
-        <div class="ledger-card-holiday">${holidayFor(k).type}${holidayFor(k).name?'・'+escapeAttr(holidayFor(k).name):''}</div>
+        <div class="status-badges">${calendarBadge(hol.type)}${workBadge(r.type||'')}${compWarningBadge(c)}</div>
       </div>
       <span class="ledger-card-status">${r.updatedAt?'保存済':'未入力'}</span>
     </div>
@@ -161,13 +188,24 @@ function saveLedgerRow(entry){
   if(!saveRecord(k,r))return false;
   renderDashboard();renderTodayMetrics();if(k===iso())loadTodayForm();
   updateLedgerCalculations();
-  entry.classList.remove('dirty');entry.classList.add('saved-ok');
+  const c=calcRecord(k,state.records[k]||{});
+  const hol=holidayFor(k);
+  entry.className=entry.className
+    .split(/\s+/)
+    .filter(x=>!x.startsWith('type-')&&!x.startsWith('holiday-')&&x!=='dirty'&&x!=='saved-ok'&&x!=='ledger-card-save-flash')
+    .join(' ');
+  entry.classList.add(holidayClass(hol.type),`type-${r.type||''}`,'saved-ok','ledger-card-save-flash');
   const button=entry.querySelector('.save-ledger-row');
   const status=entry.querySelector('.ledger-card-status');
+  const badges=entry.querySelector('.status-badges');
   if(button){button.textContent='保存済';button.classList.add('saved')}
   if(status)status.textContent='保存済';
+  if(badges)badges.innerHTML=calendarBadge(hol.type)+workBadge(r.type||'')+compWarningBadge(c);
   $('ledgerSaveMessage').textContent=`${k} を保存しました。`;
-  setTimeout(()=>{$('ledgerSaveMessage').textContent=''},2500);
+  setTimeout(()=>{
+    entry.classList.remove('ledger-card-save-flash');
+    $('ledgerSaveMessage').textContent=''
+  },1800);
   return true
 }
 function clearLedgerRow(entry){
@@ -192,17 +230,140 @@ function logout(){localStorage.removeItem(SESSION_KEY);showLock()}
 function download(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click();URL.revokeObjectURL(a.href)}
 function exportCsv(){const rows=[['日付','月度','期間','勤務区分','出勤','退勤','外出','戻り','備考']];Object.entries(state.records).sort().forEach(([k,r])=>{const p=periodForDate(parseIso(k));rows.push([k,p?.label||'',p?.range||'',r.type||'',r.start||'',r.end||'',r.out||'',r.back||'',r.note||''])});download('attendance.csv','\ufeff'+rows.map(r=>r.map(v=>`"${String(v).replaceAll('"','""')}"`).join(',')).join('\n'),'text/csv')}
 function normalizeHeader(v){return String(v??'').trim().replace(/\s+/g,'').replace(/[（）()]/g,'')}
-const aliases={date:['日付','年月日','勤務日'],type:['勤務区分','区分','勤怠区分'],start:['出勤','出勤時刻','始業','始業時刻'],end:['退勤','退勤時刻','終業','終業時刻'],out:['外出','外出時刻'],back:['戻り','戻り時刻','帰社','帰社時刻'],note:['備考','摘要','メモ']};
+const aliases={
+  date:['日付','年月日','勤務日','出勤日','対象日'],
+  type:['勤務区分','区分','勤怠区分','勤務種別','勤務'],
+  start:['出勤','出勤時刻','始業','始業時刻','開始','開始時刻'],
+  end:['退勤','退勤時刻','終業','終業時刻','終了','終了時刻'],
+  out:['外出','外出時刻','中抜け開始'],
+  back:['戻り','戻り時刻','帰社','帰社時刻','中抜け終了'],
+  note:['備考','摘要','メモ','コメント']
+};
 function detectHeader(rows){for(let i=0;i<Math.min(rows.length,30);i++){const n=(rows[i]||[]).map(normalizeHeader);if(aliases.date.some(x=>n.includes(x))&&(aliases.type.some(x=>n.includes(x))||aliases.start.some(x=>n.includes(x))))return i}return-1}
 function mapCols(h){const n=h.map(normalizeHeader),o={};for(const[k,a]of Object.entries(aliases))o[k]=n.findIndex(x=>a.includes(x));return o}
-function excelDate(v){if(v==null||v==='')return'';if(v instanceof Date&&!isNaN(v))return iso(v);if(typeof v==='number'&&window.XLSX){const p=XLSX.SSF.parse_date_code(v);if(p)return`${p.y}-${pad(p.m)}-${pad(p.d)}`}const s=String(v).trim(),m=s.match(/^(\d{4})[\/\-.年](\d{1,2})[\/\-.月](\d{1,2})日?$/);if(m)return`${m[1]}-${pad(m[2])}-${pad(m[3])}`;const d=new Date(s);return isNaN(d)?'':iso(d)}
-function excelTime(v){if(v==null||v==='')return'';if(v instanceof Date&&!isNaN(v))return`${pad(v.getHours())}:${pad(v.getMinutes())}`;if(typeof v==='number'){const t=Math.round((v%1)*1440);return`${pad(Math.floor(t/60)%24)}:${pad(t%60)}`}const m=String(v).trim().match(/(\d{1,2}):(\d{2})/);return m?`${pad(m[1])}:${m[2]}`:''}
-async function importWorkbook(file){$('importResult').textContent='読み込み中…';$('importErrors').textContent='';try{if(!window.XLSX)throw new Error('Excel読込ライブラリを読み込めません。CSVならオフラインでも利用できます。');const book=XLSX.read(await file.arrayBuffer(),{type:'array',cellDates:true});let sel=null;for(const name of book.SheetNames){const rows=XLSX.utils.sheet_to_json(book.Sheets[name],{header:1,defval:'',raw:true}),hr=detectHeader(rows);if(hr>=0){sel={name,rows,hr};break}}if(!sel)throw new Error('見出し行が見つかりません。');const c=mapCols(sel.rows[sel.hr]);if(c.date<0)throw new Error('日付列が見つかりません。');let imported=0,skipped=0,over=0,errors=[];for(let i=sel.hr+1;i<sel.rows.length;i++){const row=sel.rows[i],date=excelDate(row[c.date]);if(!date){if(row.some(v=>String(v).trim()))errors.push(`${i+1}行目：日付不明`);continue}const old=state.records[date];if(old&&$('importPolicy').value==='skip'){skipped++;continue}state.records[date]={type:c.type>=0?String(row[c.type]||'').trim()||old?.type||'出勤':old?.type||'出勤',start:c.start>=0?excelTime(row[c.start]):old?.start||'',end:c.end>=0?excelTime(row[c.end]):old?.end||'',out:c.out>=0?excelTime(row[c.out]):old?.out||'',back:c.back>=0?excelTime(row[c.back]):old?.back||'',note:c.note>=0?String(row[c.note]||'').trim():old?.note||'',updatedAt:new Date().toISOString(),importedFrom:file.name};if(old)over++;imported++}persist();renderAll();loadTodayForm();$('importResult').textContent=`${imported}件取込み、${over}件上書き、${skipped}件スキップ`;$('importErrors').innerHTML=errors.length?errors.slice(0,20).join('<br>'):'エラーはありません。'}catch(e){$('importResult').textContent='取込み失敗';$('importErrors').textContent=e.message}finally{$('importExcel').value=''}}
-async function clearOldAppCaches(){try{if('serviceWorker'in navigator){const regs=await navigator.serviceWorker.getRegistrations();await Promise.all(regs.map(r=>r.unregister()))}if('caches'in window){const keys=await caches.keys();await Promise.all(keys.map(k=>caches.delete(k)))}}catch(e){console.warn('cache cleanup',e)}}
+function excelDate(v,baseYear=state.settings.fiscalYear){
+  if(v==null||v==='')return'';
+  if(v instanceof Date&&!isNaN(v))return iso(v);
+  if(typeof v==='number'&&window.XLSX){
+    const p=XLSX.SSF.parse_date_code(v);
+    if(p&&p.y>=1900)return`${p.y}-${pad(p.m)}-${pad(p.d)}`
+  }
+  let s=String(v).trim();
+  if(!s)return'';
+  s=s.replace(/\([^)]*\)/g,'')
+     .replace(/[月火水木金土日]曜日?/g,'')
+     .replace(/\s+\d{1,2}:\d{2}(:\d{2})?$/,'')
+     .replace(/午前|午後/g,'')
+     .trim();
+  let m=s.match(/(\d{4})\s*[\/\-.年]\s*(\d{1,2})\s*[\/\-.月]\s*(\d{1,2})\s*日?/);
+  if(m)return`${m[1]}-${pad(m[2])}-${pad(m[3])}`;
+  m=s.match(/^(\d{1,2})\s*[\/\-.月]\s*(\d{1,2})\s*日?$/);
+  if(m){
+    let year=Number(baseYear)||new Date().getFullYear();
+    const month=Number(m[1]),fiscalStart=Number(state.settings.fiscalStartMonth)||4;
+    if(month<fiscalStart)year++;
+    return`${year}-${pad(month)}-${pad(m[2])}`
+  }
+  const parsed=new Date(s);
+  return isNaN(parsed)?'':iso(parsed)
+}
+function excelTime(v){
+  if(v==null||v==='')return'';
+  if(v instanceof Date&&!isNaN(v))return`${pad(v.getHours())}:${pad(v.getMinutes())}`;
+  if(typeof v==='number'){
+    const fraction=((v%1)+1)%1,t=Math.round(fraction*1440)%1440;
+    return`${pad(Math.floor(t/60))}:${pad(t%60)}`
+  }
+  const s=String(v).trim();
+  if(!s)return'';
+  const jp=s.match(/(午前|午後)?\s*(\d{1,2})\s*時(?:\s*(\d{1,2})\s*分?)?/);
+  if(jp){
+    let h=Number(jp[2]),m=Number(jp[3]||0);
+    if(jp[1]==='午後'&&h<12)h+=12;
+    if(jp[1]==='午前'&&h===12)h=0;
+    return`${pad(h)}:${pad(m)}`
+  }
+  const m=s.match(/(\d{1,2}):(\d{2})/);
+  return m?`${pad(m[1])}:${m[2]}`:''
+}
+function sheetCandidate(book,name){
+  const rows=XLSX.utils.sheet_to_json(book.Sheets[name],{header:1,defval:'',raw:true});
+  const hr=detectHeader(rows);
+  if(hr<0)return null;
+  const cols=mapCols(rows[hr]);
+  if(cols.date<0)return null;
+  let validDates=0,nonEmpty=0;
+  for(let i=hr+1;i<Math.min(rows.length,hr+400);i++){
+    const row=rows[i]||[];
+    if(row.some(v=>String(v??'').trim()!==''))nonEmpty++;
+    if(excelDate(row[cols.date]))validDates++
+  }
+  const mappedFields=['type','start','end','out','back','note'].filter(k=>cols[k]>=0).length;
+  const score=validDates*20+mappedFields*5+(cols.type>=0?10:0)+(cols.start>=0?10:0)+(cols.end>=0?10:0);
+  return{name,rows,hr,cols,validDates,nonEmpty,mappedFields,score}
+}
+async function importWorkbook(file){
+  $('importResult').textContent='読み込み中…';
+  $('importErrors').textContent='';
+  $('importSheetInfo').hidden=true;
+  try{
+    if(!window.XLSX)throw new Error('Excel読込ライブラリを読み込めません。通信状態を確認してください。');
+    const book=XLSX.read(await file.arrayBuffer(),{type:'array',cellDates:true,cellNF:true,cellText:true,raw:true});
+    const candidates=book.SheetNames.map(name=>sheetCandidate(book,name)).filter(Boolean).sort((a,b)=>b.score-a.score);
+    if(!candidates.length)throw new Error('「日付」を含む台帳形式のシートが見つかりません。');
+    const sel=candidates[0];
+    if(sel.validDates===0){
+      const samples=sel.rows.slice(sel.hr+1,sel.hr+8).map((r,i)=>`${sel.hr+i+2}行目：${String(r[sel.cols.date]??'')}`).join(' / ');
+      throw new Error(`日付列は見つかりましたが、日付を解析できません。読み取った値：${samples}`)
+    }
+    $('importSheetInfo').hidden=false;
+    $('importSheetInfo').textContent=`取込対象：${sel.name}（日付判定 ${sel.validDates}件、認識列 ${sel.mappedFields+1}項目）`;
+    const c=sel.cols;
+    let imported=0,skipped=0,over=0,errors=[];
+    for(let i=sel.hr+1;i<sel.rows.length;i++){
+      const row=sel.rows[i]||[];
+      if(!row.some(v=>String(v??'').trim()!==''))continue;
+      const rawDate=row[c.date],date=excelDate(rawDate);
+      if(!date){errors.push(`${i+1}行目：日付不明「${String(rawDate??'').slice(0,30)}」`);continue}
+      const old=state.records[date];
+      if(old&&$('importPolicy').value==='skip'){skipped++;continue}
+      const rawType=c.type>=0?String(row[c.type]??'').trim():'';
+      const normalizedType=['出勤','休日出勤','公休','有休','代休','特休'].includes(rawType)
+        ?rawType
+        :(rawType.includes('休日')&&rawType.includes('出勤')?'休日出勤':
+          rawType.includes('有休')?'有休':
+          rawType.includes('代休')?'代休':
+          rawType.includes('公休')?'公休':
+          rawType.includes('特休')?'特休':
+          rawType?'出勤':(old?.type||'出勤'));
+      state.records[date]={
+        type:normalizedType,
+        start:c.start>=0?excelTime(row[c.start]):old?.start||'',
+        end:c.end>=0?excelTime(row[c.end]):old?.end||'',
+        out:c.out>=0?excelTime(row[c.out]):old?.out||'',
+        back:c.back>=0?excelTime(row[c.back]):old?.back||'',
+        note:c.note>=0?String(row[c.note]??'').trim():old?.note||'',
+        updatedAt:new Date().toISOString(),
+        importedFrom:`${file.name} / ${sel.name}`
+      };
+      if(old)over++;
+      imported++
+    }
+    if(!persist())throw new Error('ブラウザへの保存に失敗しました。');
+    renderAll();loadTodayForm();
+    $('importResult').textContent=`${imported}件取込み、${over}件上書き、${skipped}件スキップ`;
+    $('importErrors').innerHTML=errors.length
+      ?`<b>確認事項 ${errors.length}件</b><br>${errors.slice(0,30).map(x=>escapeAttr(x)).join('<br>')}${errors.length>30?'<br>…':''}`
+      :'エラーはありません。'
+  }catch(e){
+    $('importResult').textContent='取込み失敗';
+    $('importErrors').textContent=e.message
+  }finally{$('importExcel').value=''}
+}
 function setup(){document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab,.view').forEach(x=>x.classList.remove('active'));b.classList.add('active');$('view-'+b.dataset.view).classList.add('active');if(b.dataset.view==='ledger')renderLedger()});document.querySelectorAll('.now').forEach(b=>b.onclick=e=>{e.preventDefault();$(b.dataset.target).value=hm();previewToday()});['workType','start','end','out','back'].forEach(id=>$(id).addEventListener('input',previewToday));['fiscalYear','fiscalStartMonth','fiscalStartDay','cutoffDay'].forEach(id=>$(id).addEventListener('input',renderPeriodPreview));$('saveToday').onclick=saveToday;$('saveAllLedger').onclick=()=>{let ok=0;document.querySelectorAll('[data-ledger-entry].dirty').forEach(entry=>{if(saveLedgerRow(entry))ok++});$('ledgerSaveMessage').textContent=ok?`${ok}件を保存しました。`:'変更された行はありません。'};$('reloadLedger').onclick=renderLedger;$('calendarMonth').onchange=renderCalendar;
 $('ledgerPeriod').onchange=renderLedger;
 $('prevLedgerPeriod').onclick=()=>{const i=Math.max(0,(+$('ledgerPeriod').value||0)-1);$('ledgerPeriod').value=String(i);renderLedger()};
-$('nextLedgerPeriod').onclick=()=>{const i=Math.min(11,(+$('ledgerPeriod').value||0)+1);$('ledgerPeriod').value=String(i);renderLedger()};$('saveHoliday').onclick=()=>{state.calendar[dialogDate]={type:$('holidayType').value,name:$('holidayName').value};persist();renderAll()};$('saveSettings').onclick=saveSettings;$('loginButton').onclick=login;$('logoutButton').onclick=logout;$('loginPassword').onkeydown=e=>{if(e.key==='Enter')login()};$('confirmPassword').onkeydown=e=>{if(e.key==='Enter')login()};$('exportJson').onclick=()=>download('attendance-backup.json',JSON.stringify(state,null,2),'application/json');$('importJson').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{const x=JSON.parse(r.result);state={version:5.2,settings:{...defaults.settings,...(x.settings||{})},records:x.records||{},calendar:x.calendar||{}};persist();renderAll();loadTodayForm();alert('復元しました')};r.readAsText(f)};$('exportCsv').onclick=exportCsv;$('importExcel').onchange=e=>{const f=e.target.files[0];if(f)importWorkbook(f)};$('resetData').onclick=()=>{if(confirm('全データを削除しますか？')){state=structuredClone(defaults);persist();renderAll();loadTodayForm()}};window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;$('installBtn').hidden=false});$('installBtn').onclick=async()=>{if(deferredPrompt){deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;$('installBtn').hidden=true}};let lastMobile=isMobileLedger();
+$('nextLedgerPeriod').onclick=()=>{const i=Math.min(11,(+$('ledgerPeriod').value||0)+1);$('ledgerPeriod').value=String(i);renderLedger()};$('saveHoliday').onclick=()=>{state.calendar[dialogDate]={type:$('holidayType').value,name:$('holidayName').value};persist();renderAll()};$('saveSettings').onclick=saveSettings;$('loginButton').onclick=login;$('logoutButton').onclick=logout;$('loginPassword').onkeydown=e=>{if(e.key==='Enter')login()};$('confirmPassword').onkeydown=e=>{if(e.key==='Enter')login()};$('exportJson').onclick=()=>download('attendance-backup.json',JSON.stringify(state,null,2),'application/json');$('importJson').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{const x=JSON.parse(r.result);state={version:5.4,settings:{...defaults.settings,...(x.settings||{})},records:x.records||{},calendar:x.calendar||{}};persist();renderAll();loadTodayForm();alert('復元しました')};r.readAsText(f)};$('exportCsv').onclick=exportCsv;$('importExcel').onchange=e=>{const f=e.target.files[0];if(f)importWorkbook(f)};$('resetData').onclick=()=>{if(confirm('全データを削除しますか？')){state=structuredClone(defaults);persist();renderAll();loadTodayForm()}};window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;$('installBtn').hidden=false});$('installBtn').onclick=async()=>{if(deferredPrompt){deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;$('installBtn').hidden=true}};let lastMobile=isMobileLedger();
 window.addEventListener('resize',()=>{const now=isMobileLedger();if(now!==lastMobile){lastMobile=now;const ledgerView=$('view-ledger');if(ledgerView&&ledgerView.classList.contains('active'))renderLedger()}});
 clearOldAppCaches();if(sessionValid()){$('lockScreen').hidden=true;renderAll();loadTodayForm()}else showLock()}
 setup();

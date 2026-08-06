@@ -175,3 +175,97 @@
   #saveAllLedger,#reloadLedger{font-size:.86rem;padding:9px 10px}
   .button-row{gap:6px}
 }
+
+
+/* ===== v5.4 visual status ===== */
+:root{
+  --holiday-workday:#f7fbff;
+  --holiday-scheduled:#fff4df;
+  --holiday-statutory:#fde8e7;
+  --holiday-company:#e9f3ff;
+  --saved-green:#e9f7ea;
+  --dirty-orange:#fff4dc;
+}
+
+/* calendar origin */
+.holiday-workday{background:var(--holiday-workday)!important}
+.holiday-scheduled{background:var(--holiday-scheduled)!important}
+.holiday-statutory{background:var(--holiday-statutory)!important}
+.holiday-company{background:var(--holiday-company)!important}
+
+/* desktop ledger row background */
+.ledger-edit-table tbody tr.holiday-workday td{background:var(--holiday-workday)}
+.ledger-edit-table tbody tr.holiday-scheduled td{background:var(--holiday-scheduled)}
+.ledger-edit-table tbody tr.holiday-statutory td{background:var(--holiday-statutory)}
+.ledger-edit-table tbody tr.holiday-company td{background:var(--holiday-company)}
+
+.ledger-edit-table tbody tr.dirty td{background:var(--dirty-orange)!important}
+.ledger-edit-table tbody tr.saved-ok td{
+  background:var(--saved-green)!important;
+  transition:background-color .25s ease;
+}
+.ledger-edit-table tbody tr.saved-ok .save-ledger-row{
+  background:#2e8b57;
+}
+.ledger-edit-table tbody tr.type-休日出勤 td:first-child{
+  box-shadow:inset 6px 0 #c0504d;
+}
+.ledger-edit-table tbody tr.type-出勤 td:first-child{
+  box-shadow:inset 6px 0 #70ad47;
+}
+.ledger-edit-table tbody tr.type-公休 td:first-child{
+  box-shadow:inset 6px 0 #888;
+}
+.ledger-edit-table tbody tr.type-有休 td:first-child{
+  box-shadow:inset 6px 0 #5b9bd5;
+}
+.ledger-edit-table tbody tr.type-代休 td:first-child{
+  box-shadow:inset 6px 0 #8064a2;
+}
+.ledger-edit-table tbody tr.type-特休 td:first-child{
+  box-shadow:inset 6px 0 #d6a500;
+}
+
+/* badges */
+.status-badges{display:flex;flex-wrap:wrap;gap:6px;margin-top:5px}
+.status-badge{
+  display:inline-flex;align-items:center;gap:4px;
+  padding:4px 8px;border-radius:999px;
+  font-size:.75rem;font-weight:700;
+}
+.status-badge.calendar-workday{background:#eaf3fb;color:#2f5f86}
+.status-badge.calendar-scheduled{background:#ffe8bf;color:#8a5a00}
+.status-badge.calendar-statutory{background:#f7c7c3;color:#8b1f1a}
+.status-badge.calendar-company{background:#d9ecff;color:#205f91}
+.status-badge.work-出勤{background:#dcefd8;color:#25611c}
+.status-badge.work-休日出勤{background:#f4cccc;color:#8b1f1a}
+.status-badge.work-公休{background:#e7e6e6;color:#555}
+.status-badge.work-有休{background:#d9eaf7;color:#245a85}
+.status-badge.work-代休{background:#e4dfec;color:#5b3f79}
+.status-badge.work-特休{background:#fff2cc;color:#7c6500}
+.status-badge.work-empty{background:#f2f2f2;color:#666}
+.status-badge.comp-warning{background:#ffe2a8;color:#8a4d00}
+
+/* mobile cards */
+.ledger-card.holiday-workday{background:var(--holiday-workday)}
+.ledger-card.holiday-scheduled{background:var(--holiday-scheduled)}
+.ledger-card.holiday-statutory{background:var(--holiday-statutory)}
+.ledger-card.holiday-company{background:var(--holiday-company)}
+.ledger-card.dirty{background:var(--dirty-orange)!important}
+.ledger-card.saved-ok{
+  background:var(--saved-green)!important;
+  transition:background-color .25s ease;
+}
+.ledger-card.saved-ok .ledger-card-status{background:#2e8b57;color:#fff}
+.ledger-card-status{
+  white-space:nowrap;
+  transition:all .2s ease;
+}
+.ledger-card-save-flash{
+  animation:savedPulse .7s ease;
+}
+@keyframes savedPulse{
+  0%{transform:scale(1)}
+  35%{transform:scale(1.01);box-shadow:0 0 0 4px rgba(46,139,87,.18)}
+  100%{transform:scale(1)}
+}
