@@ -1,11 +1,27 @@
 
 'use strict';
-const KEY='attendancePwaV5',LEGACY_KEY='attendancePwaV4',OLDER_KEY='attendancePwaV2',AUTH_KEY=KEY+'.authHash',SESSION_KEY=KEY+'.sessionUntil',SESSION_DAYS=30;
-const defaults={version:5.4,settings:{fiscalYear:new Date().getFullYear(),fiscalStartMonth:4,fiscalStartDay:21,cutoffDay:20,annualHolidayTarget:110,standardHours:8,baseBreak:1,extraBreak:.25,extraBreakAfter:'18:00',roundMinutes:15,roundStart:'切上',roundEnd:'切捨',earlyStart:'05:00',normalStart:'08:30',normalEnd:'17:30',nightStart:'22:00',monthOtLimit:45,yearOtLimit:360},records:{},calendar:{}};
-let state=load(),dialogDate='',editDate='',deferredPrompt=null;
+const KEY='attendancePwaV6',LEGACY_KEY='attendancePwaV5',OLDER_KEY='attendancePwaV4',AUTH_KEY=KEY+'.authHash',SESSION_KEY=KEY+'.sessionUntil',SESSION_DAYS=30;
+const defaults={version:6,settings:{fiscalYear:new Date().getFullYear(),fiscalStartMonth:4,fiscalStartDay:21,cutoffDay:20,annualHolidayTarget:110,standardHours:8,baseBreak:1,extraBreak:.25,extraBreakAfter:'18:00',roundMinutes:15,roundStart:'切上',roundEnd:'切捨',earlyStart:'05:00',normalStart:'08:30',normalEnd:'17:30',nightStart:'22:00',monthOtLimit:45,yearOtLimit:360},records:{},calendar:{}};
+let state=load(),dialogDate='',editDate='',deferredPrompt=null,applyingCloudState=false;
 const $=id=>document.getElementById(id),pad=n=>String(n).padStart(2,'0');
-function load(){try{const raw=JSON.parse(localStorage.getItem(KEY)||localStorage.getItem(LEGACY_KEY)||localStorage.getItem(OLDER_KEY)||'{}');return{version:5,settings:Object.assign({},defaults.settings,raw.settings||{}),records:raw.records||{},calendar:raw.calendar||{}}}catch{return structuredClone(defaults)}}
-function persist(){try{const text=JSON.stringify(state);localStorage.setItem(KEY,text);const check=localStorage.getItem(KEY);if(check!==text)throw new Error('保存内容の照合に失敗しました');return true}catch(e){console.error(e);alert('ブラウザへの保存に失敗しました：'+e.message);return false}}
+function load(){try{const raw=JSON.parse(localStorage.getItem(KEY)||localStorage.getItem(LEGACY_KEY)||localStorage.getItem(OLDER_KEY)||'{}');return{version:6,settings:Object.assign({},defaults.settings,raw.settings||{}),records:raw.records||{},calendar:raw.calendar||{}}}catch{return structuredClone(defaults)}}
+function persist(){
+  try{
+    state.version=6;
+    const text=JSON.stringify(state);
+    localStorage.setItem(KEY,text);
+    const check=localStorage.getItem(KEY);
+    if(check!==text)throw new Error('保存内容の照合に失敗しました');
+    if(!applyingCloudState){
+      window.dispatchEvent(new CustomEvent('attendance-local-change',{detail:structuredClone(state)}))
+    }
+    return true
+  }catch(e){
+    console.error(e);
+    alert('ブラウザへの保存に失敗しました：'+e.message);
+    return false
+  }
+}
 function iso(d=new Date()){return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`}
 function parseIso(k){const [y,m,d]=k.split('-').map(Number);return new Date(y,m-1,d)}
 function hm(d=new Date()){return `${pad(d.getHours())}:${pad(d.getMinutes())}`}
@@ -360,10 +376,61 @@ async function importWorkbook(file){
     $('importErrors').textContent=e.message
   }finally{$('importExcel').value=''}
 }
+
+function mergeRecordMaps(localMap={},cloudMap={}){
+  const merged={...localMap};
+  for(const [date,cloudRecord] of Object.entries(cloudMap||{})){
+    const localRecord=merged[date];
+    if(!localRecord){merged[date]=cloudRecord;continue}
+    const lt=Date.parse(localRecord.updatedAt||0)||0;
+    const ct=Date.parse(cloudRecord.updatedAt||0)||0;
+    if(ct>=lt)merged[date]=cloudRecord
+  }
+  return merged
+}
+function applyCloudState(cloud){
+  if(!cloud||typeof cloud!=='object')return;
+  applyingCloudState=true;
+  try{
+    state={
+      version:6,
+      settings:{...defaults.settings,...(cloud.settings||state.settings||{})},
+      records:mergeRecordMaps(state.records||{},cloud.records||{}),
+      calendar:{...(state.calendar||{}),...(cloud.calendar||{})}
+    };
+    localStorage.setItem(KEY,JSON.stringify(state));
+    renderAll();
+    loadTodayForm()
+  }finally{
+    applyingCloudState=false
+  }
+}
+window.addEventListener('attendance-cloud-state',e=>applyCloudState(e.detail));
+window.addEventListener('attendance-cloud-status',e=>{
+  const s=e.detail||{};
+  const status=$('cloudStatus'),user=$('cloudUser'),last=$('cloudLastSync'),head=$('cloudHeaderStatus'),msg=$('cloudMessage');
+  if(status)status.textContent=s.label||'未設定';
+  if(user)user.textContent=s.user||'未ログイン';
+  if(last)last.textContent=s.lastSync||'―';
+  if(msg)msg.textContent=s.message||'';
+  if(head){
+    head.textContent=s.shortLabel||s.label||'ローカル';
+    head.className='cloud-header-status '+(s.state||'offline')
+  }
+  const signed=Boolean(s.signedIn);
+  if($('cloudSignIn'))$('cloudSignIn').hidden=signed;
+  if($('cloudSignOut'))$('cloudSignOut').hidden=!signed;
+  if($('cloudPush'))$('cloudPush').hidden=!signed;
+  if($('cloudPull'))$('cloudPull').hidden=!signed
+});
 function setup(){document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab,.view').forEach(x=>x.classList.remove('active'));b.classList.add('active');$('view-'+b.dataset.view).classList.add('active');if(b.dataset.view==='ledger')renderLedger()});document.querySelectorAll('.now').forEach(b=>b.onclick=e=>{e.preventDefault();$(b.dataset.target).value=hm();previewToday()});['workType','start','end','out','back'].forEach(id=>$(id).addEventListener('input',previewToday));['fiscalYear','fiscalStartMonth','fiscalStartDay','cutoffDay'].forEach(id=>$(id).addEventListener('input',renderPeriodPreview));$('saveToday').onclick=saveToday;$('saveAllLedger').onclick=()=>{let ok=0;document.querySelectorAll('[data-ledger-entry].dirty').forEach(entry=>{if(saveLedgerRow(entry))ok++});$('ledgerSaveMessage').textContent=ok?`${ok}件を保存しました。`:'変更された行はありません。'};$('reloadLedger').onclick=renderLedger;$('calendarMonth').onchange=renderCalendar;
 $('ledgerPeriod').onchange=renderLedger;
 $('prevLedgerPeriod').onclick=()=>{const i=Math.max(0,(+$('ledgerPeriod').value||0)-1);$('ledgerPeriod').value=String(i);renderLedger()};
-$('nextLedgerPeriod').onclick=()=>{const i=Math.min(11,(+$('ledgerPeriod').value||0)+1);$('ledgerPeriod').value=String(i);renderLedger()};$('saveHoliday').onclick=()=>{state.calendar[dialogDate]={type:$('holidayType').value,name:$('holidayName').value};persist();renderAll()};$('saveSettings').onclick=saveSettings;$('loginButton').onclick=login;$('logoutButton').onclick=logout;$('loginPassword').onkeydown=e=>{if(e.key==='Enter')login()};$('confirmPassword').onkeydown=e=>{if(e.key==='Enter')login()};$('exportJson').onclick=()=>download('attendance-backup.json',JSON.stringify(state,null,2),'application/json');$('importJson').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{const x=JSON.parse(r.result);state={version:5.4,settings:{...defaults.settings,...(x.settings||{})},records:x.records||{},calendar:x.calendar||{}};persist();renderAll();loadTodayForm();alert('復元しました')};r.readAsText(f)};$('exportCsv').onclick=exportCsv;$('importExcel').onchange=e=>{const f=e.target.files[0];if(f)importWorkbook(f)};$('resetData').onclick=()=>{if(confirm('全データを削除しますか？')){state=structuredClone(defaults);persist();renderAll();loadTodayForm()}};window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;$('installBtn').hidden=false});$('installBtn').onclick=async()=>{if(deferredPrompt){deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;$('installBtn').hidden=true}};let lastMobile=isMobileLedger();
+$('nextLedgerPeriod').onclick=()=>{const i=Math.min(11,(+$('ledgerPeriod').value||0)+1);$('ledgerPeriod').value=String(i);renderLedger()};$('saveHoliday').onclick=()=>{state.calendar[dialogDate]={type:$('holidayType').value,name:$('holidayName').value};persist();renderAll()};$('saveSettings').onclick=saveSettings;
+$('cloudSignIn').onclick=()=>window.dispatchEvent(new Event('attendance-cloud-signin'));
+$('cloudSignOut').onclick=()=>window.dispatchEvent(new Event('attendance-cloud-signout'));
+$('cloudPush').onclick=()=>window.dispatchEvent(new CustomEvent('attendance-cloud-push',{detail:structuredClone(state)}));
+$('cloudPull').onclick=()=>window.dispatchEvent(new Event('attendance-cloud-pull'));$('loginButton').onclick=login;$('logoutButton').onclick=logout;$('loginPassword').onkeydown=e=>{if(e.key==='Enter')login()};$('confirmPassword').onkeydown=e=>{if(e.key==='Enter')login()};$('exportJson').onclick=()=>download('attendance-backup.json',JSON.stringify(state,null,2),'application/json');$('importJson').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{const x=JSON.parse(r.result);state={version:6,settings:{...defaults.settings,...(x.settings||{})},records:x.records||{},calendar:x.calendar||{}};persist();renderAll();loadTodayForm();alert('復元しました')};r.readAsText(f)};$('exportCsv').onclick=exportCsv;$('importExcel').onchange=e=>{const f=e.target.files[0];if(f)importWorkbook(f)};$('resetData').onclick=()=>{if(confirm('全データを削除しますか？')){state=structuredClone(defaults);persist();renderAll();loadTodayForm()}};window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;$('installBtn').hidden=false});$('installBtn').onclick=async()=>{if(deferredPrompt){deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;$('installBtn').hidden=true}};let lastMobile=isMobileLedger();
 window.addEventListener('resize',()=>{const now=isMobileLedger();if(now!==lastMobile){lastMobile=now;const ledgerView=$('view-ledger');if(ledgerView&&ledgerView.classList.contains('active'))renderLedger()}});
 clearOldAppCaches();if(sessionValid()){$('lockScreen').hidden=true;renderAll();loadTodayForm()}else showLock()}
 setup();

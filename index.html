@@ -7,8 +7,8 @@
   <meta name="description" content="締め日連動・過去編集・Excel取込対応の勤怠管理PWA">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=5.4.0">
-  <title>勤怠管理 v5.4</title>
+  <link rel="stylesheet" href="styles.css?v=6.0.0">
+  <title>勤怠管理 v6.0</title>
 </head>
 <body>
   <section id="lockScreen" class="lock-screen">
@@ -24,8 +24,12 @@
   </section>
 
   <header class="app-header">
-    <div><h1>勤怠管理 <small class="version-badge">v5.4</small></h1><p id="todayLabel"></p></div>
-    <div class="header-actions"><button id="installBtn" class="ghost" hidden>追加</button><button id="logoutButton" class="ghost">ログアウト</button></div>
+    <div><h1>勤怠管理 <small class="version-badge">v6.0</small></h1><p id="todayLabel"></p></div>
+    <div class="header-actions">
+      <span id="cloudHeaderStatus" class="cloud-header-status offline">ローカル</span>
+      <button id="installBtn" class="ghost" hidden>追加</button>
+      <button id="logoutButton" class="ghost">ログアウト</button>
+    </div>
   </header>
 
   <main>
@@ -139,6 +143,34 @@
         <button id="saveSettings" class="primary full">設定を保存</button>
       </article>
 
+
+      <article class="card cloud-card">
+        <h2>PC・スマホ同期（Firebase）</h2>
+        <p class="hint">同じGoogleアカウントでログインすると、PCとスマホで同じ台帳を共有します。ブラウザ保存は通信不能時の控えとして残ります。</p>
+        <div class="cloud-status-box">
+          <div><span>接続状態</span><strong id="cloudStatus">未設定</strong></div>
+          <div><span>ログイン</span><strong id="cloudUser">未ログイン</strong></div>
+          <div><span>最終同期</span><strong id="cloudLastSync">―</strong></div>
+        </div>
+        <p id="cloudMessage" class="message"></p>
+        <div class="button-row">
+          <button id="cloudSignIn" type="button">Googleで同期開始</button>
+          <button id="cloudSignOut" type="button" hidden>クラウドからログアウト</button>
+          <button id="cloudPush" type="button" hidden>この端末からクラウドへ送る</button>
+          <button id="cloudPull" type="button" hidden>クラウドから再読込</button>
+        </div>
+        <details class="cloud-help">
+          <summary>初回設定が必要です</summary>
+          <ol>
+            <li>Firebaseプロジェクトを作成</li>
+            <li>GoogleログインとCloud Firestoreを有効化</li>
+            <li><code>firebase-config.js</code>へFirebase構成を貼付</li>
+            <li><code>firestore.rules</code>のルールを公開</li>
+          </ol>
+          <p>詳しい手順はZIP内の <code>FIREBASE_SETUP.md</code> にあります。</p>
+        </details>
+      </article>
+
       <article class="card">
         <h2>Excel／CSVから一括取込み</h2>
         <p class="hint">日付、勤務区分、出勤、退勤、外出、戻り、備考を読み込み、現在の設定で再計算します。複数シートがある場合は、日付データが最も多い台帳シートを自動選択します。</p><p id="importSheetInfo" class="period-note" hidden></p>
@@ -157,6 +189,8 @@
   <dialog id="holidayDialog"><form method="dialog"><div class="dialog-title"><h2 id="holidayDateLabel">休日設定</h2><button value="cancel" class="secondary">閉じる</button></div><label>区分<select id="holidayType"><option>勤務日</option><option>所定休日</option><option>法定休日</option></select></label><label>名称<input id="holidayName" placeholder="祝日、夏季休暇など"></label><button id="saveHoliday" value="default" class="primary">保存</button></form></dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="app.js?v=5.4.0"></script>
+  <script src="firebase-config.js?v=6.0.0"></script>
+  <script type="module" src="cloud-sync.js?v=6.0.0"></script>
+  <script src="app.js?v=6.0.0"></script>
 </body>
 </html>
