@@ -1,11 +1,11 @@
-const CACHE='attendance-v6.2-20260806';
+const CACHE='attendance-v6.3-20260806';
 const ASSETS=[
   './',
   './index.html',
-  './styles.css?v=6.2.0',
-  './app.js?v=6.2.0',
-  './firebase-config.js?v=6.2.0',
-  './cloud-sync.js?v=6.2.0',
+  './styles.css?v=6.3.0',
+  './app.js?v=6.3.0',
+  './firebase-config.js?v=6.3.0',
+  './cloud-sync.js?v=6.3.0',
   './manifest.webmanifest',
   './icon.svg'
 ];
@@ -25,6 +25,7 @@ self.addEventListener('activate',event=>{
 
 self.addEventListener('fetch',event=>{
   if(event.request.method!=='GET')return;
+
   event.respondWith(
     fetch(event.request)
       .then(response=>{

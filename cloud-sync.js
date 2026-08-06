@@ -19,6 +19,7 @@ import {
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
 
+const VERSION = "6.3";
 const CONFIG = window.FIREBASE_CONFIG || {};
 const ALLOWED = (window.FIREBASE_ALLOWED_EMAILS || [])
   .map(value => String(value).trim().toLowerCase())
@@ -36,14 +37,23 @@ let db = null;
 let user = null;
 let unsubscribe = null;
 let pushTimer = null;
-let initialized = false;
 let realtimeReady = false;
+let initialized = false;
+let redirectChecked = false;
+let redirectUser = null;
 let lastCloudState = null;
 let lastError = null;
 let lastAction = "起動";
+let authEventCount = 0;
+let authReadyResolver = null;
+let authReadyPromise = new Promise(resolve => {
+  authReadyResolver = resolve;
+});
+
 let currentStatus = {
   state: "offline",
   label: "初期化中",
+  shortLabel: "ローカル",
   message: "",
   signedIn: false,
   user: "",
@@ -52,6 +62,10 @@ let currentStatus = {
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 function localState() {
@@ -67,9 +81,8 @@ function localState() {
 }
 
 function hasMeaningfulLocalData(data = {}) {
-  const recordCount = Object.keys(data.records || {}).length;
-  const calendarCount = Object.keys(data.calendar || {}).length;
-  return recordCount > 0 || calendarCount > 0;
+  return Object.keys(data.records || {}).length > 0 ||
+    Object.keys(data.calendar || {}).length > 0;
 }
 
 function allowed(account) {
@@ -84,7 +97,7 @@ function stateRef(account = user) {
 
 function normalizeState(value = {}) {
   return {
-    version: 6.2,
+    version: 6.3,
     settings: value.settings || {},
     records: value.records || {},
     calendar: value.calendar || {},
@@ -94,23 +107,27 @@ function normalizeState(value = {}) {
 
 function mergeRecords(localRecords = {}, cloudRecords = {}) {
   const merged = { ...cloudRecords };
+
   for (const [date, localRecord] of Object.entries(localRecords)) {
     const cloudRecord = merged[date];
+
     if (!cloudRecord) {
       merged[date] = localRecord;
       continue;
     }
+
     const localTime = Date.parse(localRecord?.updatedAt || 0) || 0;
     const cloudTime = Date.parse(cloudRecord?.updatedAt || 0) || 0;
+
     if (localTime > cloudTime) merged[date] = localRecord;
   }
+
   return merged;
 }
 
-function mergeForExistingDevice(local = {}, cloud = {}) {
+function mergeStates(local = {}, cloud = {}) {
   return {
-    version: 6.2,
-    // クラウド設定を優先。クラウド側にない項目だけローカルで補う。
+    version: 6.3,
     settings: { ...(local.settings || {}), ...(cloud.settings || {}) },
     records: mergeRecords(local.records || {}, cloud.records || {}),
     calendar: { ...(local.calendar || {}), ...(cloud.calendar || {}) },
@@ -120,21 +137,24 @@ function mergeForExistingDevice(local = {}, cloud = {}) {
 
 function emitState(data) {
   window.dispatchEvent(
-    new CustomEvent("attendance-cloud-state", { detail: normalizeState(data) })
+    new CustomEvent("attendance-cloud-state", {
+      detail: normalizeState(data)
+    })
   );
 }
 
 function emitStatus() {
-  const detail = {
-    ...currentStatus,
-    signedIn: Boolean(user),
-    user: user?.email || "",
-    lastSync: lastCloudState?.clientUpdatedAt
-      ? new Date(lastCloudState.clientUpdatedAt).toLocaleString("ja-JP")
-      : "―"
-  };
   window.dispatchEvent(
-    new CustomEvent("attendance-cloud-status", { detail })
+    new CustomEvent("attendance-cloud-status", {
+      detail: {
+        ...currentStatus,
+        signedIn: Boolean(user),
+        user: user?.email || "",
+        lastSync: lastCloudState?.clientUpdatedAt
+          ? new Date(lastCloudState.clientUpdatedAt).toLocaleString("ja-JP")
+          : "―"
+      }
+    })
   );
 }
 
@@ -157,20 +177,51 @@ function setStatus(state, label, message = "") {
       ? new Date(lastCloudState.clientUpdatedAt).toLocaleString("ja-JP")
       : "―"
   };
+
   lastAction = label;
   emitStatus();
 }
 
 function diagnostics() {
+  let storageAvailable = false;
+
+  try {
+    localStorage.setItem("__attendance_test__", "1");
+    localStorage.removeItem("__attendance_test__");
+    storageAvailable = true;
+  } catch {}
+
   return {
-    version: "6.2",
+    version: VERSION,
     configured,
     initialized,
+    redirectChecked,
     realtimeReady,
     online: navigator.onLine,
+    origin: location.origin,
+    href: location.href,
+    authDomain: CONFIG.authDomain || "",
+    cookiesEnabled: navigator.cookieEnabled,
+    storageAvailable,
     userAgent: navigator.userAgent,
+    authEventCount,
+    authCurrentUser: auth?.currentUser
+      ? {
+          uid: auth.currentUser.uid,
+          email: auth.currentUser.email
+        }
+      : null,
+    redirectUser: redirectUser
+      ? {
+          uid: redirectUser.uid,
+          email: redirectUser.email
+        }
+      : null,
     firebaseUser: user
-      ? { uid: user.uid, email: user.email, providerId: user.providerId }
+      ? {
+          uid: user.uid,
+          email: user.email
+        }
       : null,
     firestorePath: user
       ? `users/${user.uid}/apps/attendance-main`
@@ -206,6 +257,18 @@ function emitDiagnostics() {
   );
 }
 
+async function waitForAuthUser(timeoutMs = 10000) {
+  const started = Date.now();
+
+  while (Date.now() - started < timeoutMs) {
+    if (auth?.currentUser) return auth.currentUser;
+    if (user) return user;
+    await sleep(150);
+  }
+
+  return null;
+}
+
 async function writeCloud(data, message = "クラウドへ保存しています…") {
   if (!user || !db) throw new Error("クラウドへログインしていません。");
 
@@ -222,11 +285,13 @@ async function writeCloud(data, message = "クラウドへ保存しています�
     ...payload,
     serverUpdatedAt: undefined
   };
+
   setStatus("online", "同期済", "クラウドへ保存しました。");
 }
 
 function schedulePush(data) {
   if (!user || !db || !realtimeReady) return;
+
   clearTimeout(pushTimer);
   pushTimer = setTimeout(() => {
     writeCloud(data, "変更をクラウドへ保存しています…").catch(error => {
@@ -240,11 +305,16 @@ function schedulePush(data) {
 async function pullCloud({ announce = true } = {}) {
   if (!user || !db) throw new Error("クラウドへログインしていません。");
 
-  if (announce) setStatus("syncing", "受信中", "クラウドから読み込んでいます…");
+  if (announce) {
+    setStatus("syncing", "受信中", "クラウドから読み込んでいます…");
+  }
+
   const snapshot = await getDoc(stateRef());
 
   if (!snapshot.exists()) {
-    if (announce) setStatus("online", "同期準備完了", "クラウドにデータがありません。");
+    if (announce) {
+      setStatus("online", "同期準備完了", "クラウドにデータがありません。");
+    }
     return null;
   }
 
@@ -252,7 +322,10 @@ async function pullCloud({ announce = true } = {}) {
   lastCloudState = cloud;
   emitState(cloud);
 
-  if (announce) setStatus("online", "同期済", "クラウドの内容を読み込みました。");
+  if (announce) {
+    setStatus("online", "同期済", "クラウドの内容を読み込みました。");
+  }
+
   return cloud;
 }
 
@@ -261,6 +334,7 @@ async function establishRealtime(account) {
     unsubscribe();
     unsubscribe = null;
   }
+
   realtimeReady = false;
 
   const ref = stateRef(account);
@@ -270,7 +344,6 @@ async function establishRealtime(account) {
   const local = normalizeState(localState());
 
   if (!snapshot.exists()) {
-    // 初回の最初の端末。ローカルの内容をクラウドへ作成。
     await writeCloud(local, "この端末のデータをクラウドへ登録しています…");
     emitState(local);
   } else {
@@ -278,8 +351,7 @@ async function establishRealtime(account) {
     lastCloudState = cloud;
 
     if (hasMeaningfulLocalData(local)) {
-      // 既存端末なら更新時刻を比較して統合。
-      const merged = mergeForExistingDevice(local, cloud);
+      const merged = mergeStates(local, cloud);
       emitState(merged);
 
       const differs =
@@ -291,7 +363,6 @@ async function establishRealtime(account) {
         await writeCloud(merged, "端末とクラウドの差分を統合しています…");
       }
     } else {
-      // 新しいスマホなど、ローカルが空ならクラウドをそのまま採用。
       emitState(cloud);
     }
   }
@@ -300,6 +371,7 @@ async function establishRealtime(account) {
     ref,
     snapshotValue => {
       if (!snapshotValue.exists()) return;
+
       const cloud = normalizeState(snapshotValue.data());
       lastCloudState = cloud;
       emitState(cloud);
@@ -317,10 +389,8 @@ async function establishRealtime(account) {
 }
 
 function isMobileBrowser() {
-  return (
-    /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ||
-    window.matchMedia("(max-width: 820px)").matches
-  );
+  return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ||
+    window.matchMedia("(max-width: 820px)").matches;
 }
 
 async function signIn() {
@@ -332,6 +402,7 @@ async function signIn() {
     );
     return;
   }
+
   if (!auth) {
     setStatus("error", "認証準備中", "数秒後にもう一度押してください。");
     return;
@@ -341,6 +412,7 @@ async function signIn() {
   provider.setCustomParameters({ prompt: "select_account" });
 
   if (isMobileBrowser()) {
+    sessionStorage.setItem("attendanceRedirectPending", nowIso());
     setStatus("syncing", "Googleへ移動", "Googleログイン画面へ移動します…");
     await signInWithRedirect(auth, provider);
     return;
@@ -356,7 +428,9 @@ async function signIn() {
       "auth/operation-not-supported-in-this-environment",
       "auth/web-storage-unsupported"
     ];
+
     if (redirectCodes.includes(error.code)) {
+      sessionStorage.setItem("attendanceRedirectPending", nowIso());
       setStatus(
         "syncing",
         "Googleへ移動",
@@ -365,18 +439,41 @@ async function signIn() {
       await signInWithRedirect(auth, provider);
       return;
     }
+
     throw error;
+  }
+}
+
+async function processAccount(account) {
+  if (!account) return;
+
+  if (!allowed(account)) {
+    const deniedEmail = account.email || "このアカウント";
+    await signOut(auth);
+    setStatus(
+      "error",
+      "許可されていないアカウント",
+      `${deniedEmail}は許可リストにありません。`
+    );
+    return;
+  }
+
+  user = account;
+  setStatus("syncing", "認証済み", "クラウド台帳へ接続しています…");
+
+  try {
+    await establishRealtime(account);
+  } catch (error) {
+    lastError = error;
+    console.error(error);
+    setStatus("error", "同期エラー", error.message);
   }
 }
 
 async function init() {
   if (!configured) {
     initialized = true;
-    setStatus(
-      "offline",
-      "Firebase未設定",
-      "ローカル保存で動作しています。"
-    );
+    setStatus("offline", "Firebase未設定", "ローカル保存で動作しています。");
     window.dispatchEvent(new Event("attendance-cloud-ready"));
     return;
   }
@@ -385,58 +482,91 @@ async function init() {
     const app = initializeApp(CONFIG);
     auth = getAuth(app);
     db = getFirestore(app);
+
     await setPersistence(auth, browserLocalPersistence);
 
-    try {
-      await getRedirectResult(auth);
-    } catch (error) {
-      lastError = error;
-      console.error(error);
-      setStatus(
-        "error",
-        "ログイン失敗",
-        `${error.code || "Firebase"}: ${error.message}`
-      );
-    }
+    // 先に監視を登録し、認証復元イベントを取りこぼさない。
+    onAuthStateChanged(auth, account => {
+      authEventCount += 1;
 
-    onAuthStateChanged(auth, async account => {
       if (!account) {
         user = null;
         realtimeReady = false;
+
         if (unsubscribe) {
           unsubscribe();
           unsubscribe = null;
         }
+
         setStatus(
           "offline",
           "未ログイン",
           "GoogleでログインするとPC・スマホ同期を開始します。"
         );
+
+        if (authReadyResolver) {
+          authReadyResolver(null);
+          authReadyResolver = null;
+        }
+
         return;
       }
 
-      if (!allowed(account)) {
-        const deniedEmail = account.email || "このアカウント";
-        await signOut(auth);
-        setStatus(
-          "error",
-          "許可されていないアカウント",
-          `${deniedEmail}は許可リストにありません。`
-        );
-        return;
+      if (authReadyResolver) {
+        authReadyResolver(account);
+        authReadyResolver = null;
       }
 
-      user = account;
-      setStatus("syncing", "接続中", "クラウド台帳へ接続しています…");
-
-      try {
-        await establishRealtime(account);
-      } catch (error) {
-        lastError = error;
-        console.error(error);
-        setStatus("error", "同期エラー", error.message);
-      }
+      processAccount(account);
     });
+
+    // 監視登録後にリダイレクト結果を処理する。
+    try {
+      const result = await getRedirectResult(auth);
+      redirectChecked = true;
+
+      if (result?.user) {
+        redirectUser = result.user;
+        sessionStorage.removeItem("attendanceRedirectPending");
+        setStatus(
+          "syncing",
+          "認証復元中",
+          "Googleログイン結果を復元しています…"
+        );
+        await processAccount(result.user);
+      }
+    } catch (error) {
+      redirectChecked = true;
+      lastError = error;
+      console.error(error);
+      setStatus(
+        "error",
+        "ログイン復元失敗",
+        `${error.code || "Firebase"}: ${error.message}`
+      );
+    }
+
+    // Firebase SDKがcurrentUserを設定するまで待つ。
+    const pendingRedirect = sessionStorage.getItem("attendanceRedirectPending");
+    const restoredAccount =
+      auth.currentUser ||
+      redirectUser ||
+      await Promise.race([
+        authReadyPromise,
+        sleep(8000).then(() => null)
+      ]) ||
+      await waitForAuthUser(3000);
+
+    if (restoredAccount && !user) {
+      sessionStorage.removeItem("attendanceRedirectPending");
+      await processAccount(restoredAccount);
+    } else if (pendingRedirect && !restoredAccount) {
+      setStatus(
+        "error",
+        "認証復元待ち",
+        "Googleログイン後の認証情報を復元できませんでした。同期診断を確認してください。"
+      );
+    }
 
     initialized = true;
     window.dispatchEvent(new Event("attendance-cloud-ready"));
@@ -467,7 +597,10 @@ window.addEventListener("attendance-cloud-signout", () => {
 });
 
 window.addEventListener("attendance-cloud-push", event => {
-  writeCloud(event.detail, "この端末のデータをクラウドへ送っています…").catch(error => {
+  writeCloud(
+    event.detail,
+    "この端末のデータをクラウドへ送っています…"
+  ).catch(error => {
     lastError = error;
     console.error(error);
     setStatus("error", "送信失敗", error.message);
@@ -500,7 +633,11 @@ window.addEventListener("online", () => {
 });
 
 window.addEventListener("offline", () => {
-  setStatus("offline", "オフライン", "端末内へ保存し、通信復旧後に再接続します。");
+  setStatus(
+    "offline",
+    "オフライン",
+    "端末内へ保存し、通信復旧後に再接続します。"
+  );
 });
 
 init();

@@ -7,8 +7,8 @@
   <meta name="description" content="締め日連動・過去編集・Excel取込対応の勤怠管理PWA">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=6.2.0">
-  <title>勤怠管理 v6.2</title>
+  <link rel="stylesheet" href="styles.css?v=6.3.0">
+  <title>勤怠管理 v6.3</title>
 </head>
 <body>
   <section id="lockScreen" class="lock-screen">
@@ -24,7 +24,7 @@
   </section>
 
   <header class="app-header">
-    <div><h1>勤怠管理 <small class="version-badge">v6.2</small></h1><p id="todayLabel"></p></div>
+    <div><h1>勤怠管理 <small class="version-badge">v6.3</small></h1><p id="todayLabel"></p></div>
     <div class="header-actions">
       <span id="cloudHeaderStatus" class="cloud-header-status offline">ローカル</span>
       <button id="installBtn" class="ghost" hidden>追加</button>
@@ -191,8 +191,8 @@
   <dialog id="holidayDialog"><form method="dialog"><div class="dialog-title"><h2 id="holidayDateLabel">休日設定</h2><button value="cancel" class="secondary">閉じる</button></div><label>区分<select id="holidayType"><option>勤務日</option><option>所定休日</option><option>法定休日</option></select></label><label>名称<input id="holidayName" placeholder="祝日、夏季休暇など"></label><button id="saveHoliday" value="default" class="primary">保存</button></form></dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="firebase-config.js?v=6.2.0"></script>
-  <script type="module" src="cloud-sync.js?v=6.2.0"></script>
-  <script src="app.js?v=6.2.0"></script>
+  <script src="firebase-config.js?v=6.3.0"></script>
+  <script type="module" src="cloud-sync.js?v=6.3.0"></script>
+  <script src="app.js?v=6.3.0"></script>
 </body>
 </html>
