@@ -7,5 +7,3 @@ window.FIREBASE_CONFIG = {
   appId: "1:424158429227:web:176ebf4d76d0fb2fa36a6e",
   measurementId: "G-DHP8D33YYM"
 };
-
-window.FIREBASE_ALLOWED_EMAILS = [];

@@ -1,10 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
 import {
   getAuth,
-  GoogleAuthProvider,
-  signInWithPopup,
-  signInWithRedirect,
-  getRedirectResult,
+  signInWithEmailAndPassword,
   setPersistence,
   browserLocalPersistence,
   onAuthStateChanged,
@@ -19,12 +16,8 @@ import {
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
 
-const VERSION = "6.3";
+const VERSION = "7.0";
 const CONFIG = window.FIREBASE_CONFIG || {};
-const ALLOWED = (window.FIREBASE_ALLOWED_EMAILS || [])
-  .map(value => String(value).trim().toLowerCase())
-  .filter(Boolean);
-
 const LOCAL_KEYS = ["attendancePwaV6", "attendancePwaV5", "attendancePwaV4"];
 const configured =
   Boolean(CONFIG.apiKey) &&
@@ -39,16 +32,9 @@ let unsubscribe = null;
 let pushTimer = null;
 let realtimeReady = false;
 let initialized = false;
-let redirectChecked = false;
-let redirectUser = null;
 let lastCloudState = null;
 let lastError = null;
 let lastAction = "起動";
-let authEventCount = 0;
-let authReadyResolver = null;
-let authReadyPromise = new Promise(resolve => {
-  authReadyResolver = resolve;
-});
 
 let currentStatus = {
   state: "offline",
@@ -64,10 +50,6 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
 function localState() {
   for (const key of LOCAL_KEYS) {
     try {
@@ -81,23 +63,26 @@ function localState() {
 }
 
 function hasMeaningfulLocalData(data = {}) {
-  return Object.keys(data.records || {}).length > 0 ||
-    Object.keys(data.calendar || {}).length > 0;
+  return (
+    Object.keys(data.records || {}).length > 0 ||
+    Object.keys(data.calendar || {}).length > 0
+  );
 }
 
-function allowed(account) {
-  if (!ALLOWED.length) return true;
-  return ALLOWED.includes(String(account?.email || "").toLowerCase());
-}
-
-function stateRef(account = user) {
-  if (!db || !account) throw new Error("Firestoreまたはログイン情報がありません。");
-  return doc(db, "users", account.uid, "apps", "attendance-main");
+/*
+全端末が同じ共有台帳を使用します。
+Firestoreルールにより、ログイン済み利用者だけがアクセスできます。
+*/
+function stateRef() {
+  if (!db || !user) {
+    throw new Error("Firestoreまたはログイン情報がありません。");
+  }
+  return doc(db, "shared", "attendance-main");
 }
 
 function normalizeState(value = {}) {
   return {
-    version: 6.3,
+    version: 7,
     settings: value.settings || {},
     records: value.records || {},
     calendar: value.calendar || {},
@@ -119,7 +104,9 @@ function mergeRecords(localRecords = {}, cloudRecords = {}) {
     const localTime = Date.parse(localRecord?.updatedAt || 0) || 0;
     const cloudTime = Date.parse(cloudRecord?.updatedAt || 0) || 0;
 
-    if (localTime > cloudTime) merged[date] = localRecord;
+    if (localTime > cloudTime) {
+      merged[date] = localRecord;
+    }
   }
 
   return merged;
@@ -127,7 +114,7 @@ function mergeRecords(localRecords = {}, cloudRecords = {}) {
 
 function mergeStates(local = {}, cloud = {}) {
   return {
-    version: 6.3,
+    version: 7,
     settings: { ...(local.settings || {}), ...(cloud.settings || {}) },
     records: mergeRecords(local.records || {}, cloud.records || {}),
     calendar: { ...(local.calendar || {}), ...(cloud.calendar || {}) },
@@ -183,38 +170,21 @@ function setStatus(state, label, message = "") {
 }
 
 function diagnostics() {
-  let storageAvailable = false;
-
-  try {
-    localStorage.setItem("__attendance_test__", "1");
-    localStorage.removeItem("__attendance_test__");
-    storageAvailable = true;
-  } catch {}
-
   return {
     version: VERSION,
     configured,
     initialized,
-    redirectChecked,
     realtimeReady,
     online: navigator.onLine,
     origin: location.origin,
     href: location.href,
     authDomain: CONFIG.authDomain || "",
     cookiesEnabled: navigator.cookieEnabled,
-    storageAvailable,
     userAgent: navigator.userAgent,
-    authEventCount,
     authCurrentUser: auth?.currentUser
       ? {
           uid: auth.currentUser.uid,
           email: auth.currentUser.email
-        }
-      : null,
-    redirectUser: redirectUser
-      ? {
-          uid: redirectUser.uid,
-          email: redirectUser.email
         }
       : null,
     firebaseUser: user
@@ -223,9 +193,7 @@ function diagnostics() {
           email: user.email
         }
       : null,
-    firestorePath: user
-      ? `users/${user.uid}/apps/attendance-main`
-      : null,
+    firestorePath: user ? "shared/attendance-main" : null,
     status: currentStatus,
     lastAction,
     lastError: lastError
@@ -257,20 +225,10 @@ function emitDiagnostics() {
   );
 }
 
-async function waitForAuthUser(timeoutMs = 10000) {
-  const started = Date.now();
-
-  while (Date.now() - started < timeoutMs) {
-    if (auth?.currentUser) return auth.currentUser;
-    if (user) return user;
-    await sleep(150);
-  }
-
-  return null;
-}
-
 async function writeCloud(data, message = "クラウドへ保存しています…") {
-  if (!user || !db) throw new Error("クラウドへログインしていません。");
+  if (!user || !db) {
+    throw new Error("クラウドへログインしていません。");
+  }
 
   const payload = normalizeState(data);
   payload.ownerUid = user.uid;
@@ -303,7 +261,9 @@ function schedulePush(data) {
 }
 
 async function pullCloud({ announce = true } = {}) {
-  if (!user || !db) throw new Error("クラウドへログインしていません。");
+  if (!user || !db) {
+    throw new Error("クラウドへログインしていません。");
+  }
 
   if (announce) {
     setStatus("syncing", "受信中", "クラウドから読み込んでいます…");
@@ -329,22 +289,21 @@ async function pullCloud({ announce = true } = {}) {
   return cloud;
 }
 
-async function establishRealtime(account) {
+async function establishRealtime() {
   if (unsubscribe) {
     unsubscribe();
     unsubscribe = null;
   }
 
   realtimeReady = false;
+  setStatus("syncing", "初回同期", "共有台帳を確認しています…");
 
-  const ref = stateRef(account);
-  setStatus("syncing", "初回同期", "クラウド台帳を確認しています…");
-
+  const ref = stateRef();
   const snapshot = await getDoc(ref);
   const local = normalizeState(localState());
 
   if (!snapshot.exists()) {
-    await writeCloud(local, "この端末のデータをクラウドへ登録しています…");
+    await writeCloud(local, "この端末のデータを共有台帳へ登録しています…");
     emitState(local);
   } else {
     const cloud = normalizeState(snapshot.data());
@@ -360,7 +319,7 @@ async function establishRealtime(account) {
         JSON.stringify(merged.settings) !== JSON.stringify(cloud.settings);
 
       if (differs) {
-        await writeCloud(merged, "端末とクラウドの差分を統合しています…");
+        await writeCloud(merged, "端末と共有台帳の差分を統合しています…");
       }
     } else {
       emitState(cloud);
@@ -375,7 +334,7 @@ async function establishRealtime(account) {
       const cloud = normalizeState(snapshotValue.data());
       lastCloudState = cloud;
       emitState(cloud);
-      setStatus("online", "同期済", "クラウドとのリアルタイム同期は有効です。");
+      setStatus("online", "同期済", "PC・スマホ同期は有効です。");
     },
     error => {
       lastError = error;
@@ -388,12 +347,7 @@ async function establishRealtime(account) {
   setStatus("online", "同期済", "PC・スマホ同期は有効です。");
 }
 
-function isMobileBrowser() {
-  return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ||
-    window.matchMedia("(max-width: 820px)").matches;
-}
-
-async function signIn() {
+async function emailSignIn(email, password) {
   if (!configured) {
     setStatus(
       "error",
@@ -408,61 +362,25 @@ async function signIn() {
     return;
   }
 
-  const provider = new GoogleAuthProvider();
-  provider.setCustomParameters({ prompt: "select_account" });
-
-  if (isMobileBrowser()) {
-    sessionStorage.setItem("attendanceRedirectPending", nowIso());
-    setStatus("syncing", "Googleへ移動", "Googleログイン画面へ移動します…");
-    await signInWithRedirect(auth, provider);
-    return;
-  }
-
-  try {
-    await signInWithPopup(auth, provider);
-  } catch (error) {
-    const redirectCodes = [
-      "auth/popup-blocked",
-      "auth/popup-closed-by-user",
-      "auth/cancelled-popup-request",
-      "auth/operation-not-supported-in-this-environment",
-      "auth/web-storage-unsupported"
-    ];
-
-    if (redirectCodes.includes(error.code)) {
-      sessionStorage.setItem("attendanceRedirectPending", nowIso());
-      setStatus(
-        "syncing",
-        "Googleへ移動",
-        "画面遷移方式のGoogleログインへ切り替えます…"
-      );
-      await signInWithRedirect(auth, provider);
-      return;
-    }
-
-    throw error;
-  }
-}
-
-async function processAccount(account) {
-  if (!account) return;
-
-  if (!allowed(account)) {
-    const deniedEmail = account.email || "このアカウント";
-    await signOut(auth);
+  if (!email || !password) {
     setStatus(
       "error",
-      "許可されていないアカウント",
-      `${deniedEmail}は許可リストにありません。`
+      "入力不足",
+      "メールアドレスとパスワードを入力してください。"
     );
     return;
   }
 
+  setStatus("syncing", "ログイン中", "Firebaseへログインしています…");
+  await signInWithEmailAndPassword(auth, email, password);
+}
+
+async function processAccount(account) {
   user = account;
-  setStatus("syncing", "認証済み", "クラウド台帳へ接続しています…");
+  setStatus("syncing", "認証済み", "共有台帳へ接続しています…");
 
   try {
-    await establishRealtime(account);
+    await establishRealtime();
   } catch (error) {
     lastError = error;
     console.error(error);
@@ -485,10 +403,7 @@ async function init() {
 
     await setPersistence(auth, browserLocalPersistence);
 
-    // 先に監視を登録し、認証復元イベントを取りこぼさない。
     onAuthStateChanged(auth, account => {
-      authEventCount += 1;
-
       if (!account) {
         user = null;
         realtimeReady = false;
@@ -501,72 +416,13 @@ async function init() {
         setStatus(
           "offline",
           "未ログイン",
-          "GoogleでログインするとPC・スマホ同期を開始します。"
+          "メールアドレスとパスワードでログインしてください。"
         );
-
-        if (authReadyResolver) {
-          authReadyResolver(null);
-          authReadyResolver = null;
-        }
-
         return;
-      }
-
-      if (authReadyResolver) {
-        authReadyResolver(account);
-        authReadyResolver = null;
       }
 
       processAccount(account);
     });
-
-    // 監視登録後にリダイレクト結果を処理する。
-    try {
-      const result = await getRedirectResult(auth);
-      redirectChecked = true;
-
-      if (result?.user) {
-        redirectUser = result.user;
-        sessionStorage.removeItem("attendanceRedirectPending");
-        setStatus(
-          "syncing",
-          "認証復元中",
-          "Googleログイン結果を復元しています…"
-        );
-        await processAccount(result.user);
-      }
-    } catch (error) {
-      redirectChecked = true;
-      lastError = error;
-      console.error(error);
-      setStatus(
-        "error",
-        "ログイン復元失敗",
-        `${error.code || "Firebase"}: ${error.message}`
-      );
-    }
-
-    // Firebase SDKがcurrentUserを設定するまで待つ。
-    const pendingRedirect = sessionStorage.getItem("attendanceRedirectPending");
-    const restoredAccount =
-      auth.currentUser ||
-      redirectUser ||
-      await Promise.race([
-        authReadyPromise,
-        sleep(8000).then(() => null)
-      ]) ||
-      await waitForAuthUser(3000);
-
-    if (restoredAccount && !user) {
-      sessionStorage.removeItem("attendanceRedirectPending");
-      await processAccount(restoredAccount);
-    } else if (pendingRedirect && !restoredAccount) {
-      setStatus(
-        "error",
-        "認証復元待ち",
-        "Googleログイン後の認証情報を復元できませんでした。同期診断を確認してください。"
-      );
-    }
 
     initialized = true;
     window.dispatchEvent(new Event("attendance-cloud-ready"));
@@ -584,11 +440,30 @@ window.addEventListener("attendance-local-change", event => {
   schedulePush(event.detail);
 });
 
-window.addEventListener("attendance-cloud-signin", () => {
-  signIn().catch(error => {
+window.addEventListener("attendance-cloud-email-signin", event => {
+  const email = String(event.detail?.email || "").trim();
+  const password = String(event.detail?.password || "");
+
+  emailSignIn(email, password).catch(error => {
     lastError = error;
     console.error(error);
-    setStatus("error", "ログイン失敗", error.message);
+
+    const messages = {
+      "auth/invalid-credential":
+        "メールアドレスまたはパスワードが違います。",
+      "auth/invalid-email":
+        "メールアドレスの形式が正しくありません。",
+      "auth/too-many-requests":
+        "ログイン試行が多すぎます。しばらく待ってください。",
+      "auth/user-disabled":
+        "このユーザーは無効化されています。"
+    };
+
+    setStatus(
+      "error",
+      "ログイン失敗",
+      messages[error.code] || `${error.code || "Firebase"}: ${error.message}`
+    );
   });
 });
 
@@ -599,7 +474,7 @@ window.addEventListener("attendance-cloud-signout", () => {
 window.addEventListener("attendance-cloud-push", event => {
   writeCloud(
     event.detail,
-    "この端末のデータをクラウドへ送っています…"
+    "この端末のデータを共有台帳へ送っています…"
   ).catch(error => {
     lastError = error;
     console.error(error);
@@ -625,7 +500,7 @@ window.addEventListener("attendance-cloud-diagnose", () => {
 
 window.addEventListener("online", () => {
   if (user) {
-    establishRealtime(user).catch(error => {
+    establishRealtime().catch(error => {
       lastError = error;
       setStatus("error", "再接続失敗", error.message);
     });

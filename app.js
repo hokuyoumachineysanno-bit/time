@@ -1,10 +1,10 @@
 
 'use strict';
 const KEY='attendancePwaV6',LEGACY_KEY='attendancePwaV5',OLDER_KEY='attendancePwaV4',AUTH_KEY=KEY+'.authHash',SESSION_KEY=KEY+'.sessionUntil',SESSION_DAYS=30;
-const defaults={version:6.3,settings:{fiscalYear:new Date().getFullYear(),fiscalStartMonth:4,fiscalStartDay:21,cutoffDay:20,annualHolidayTarget:110,standardHours:8,baseBreak:1,extraBreak:.25,extraBreakAfter:'18:00',roundMinutes:15,roundStart:'切上',roundEnd:'切捨',earlyStart:'05:00',normalStart:'08:30',normalEnd:'17:30',nightStart:'22:00',monthOtLimit:45,yearOtLimit:360},records:{},calendar:{}};
+const defaults={version:7,settings:{fiscalYear:new Date().getFullYear(),fiscalStartMonth:4,fiscalStartDay:21,cutoffDay:20,annualHolidayTarget:110,standardHours:8,baseBreak:1,extraBreak:.25,extraBreakAfter:'18:00',roundMinutes:15,roundStart:'切上',roundEnd:'切捨',earlyStart:'05:00',normalStart:'08:30',normalEnd:'17:30',nightStart:'22:00',monthOtLimit:45,yearOtLimit:360},records:{},calendar:{}};
 let state=load(),dialogDate='',editDate='',deferredPrompt=null,applyingCloudState=false;
 const $=id=>document.getElementById(id),pad=n=>String(n).padStart(2,'0');
-function load(){try{const raw=JSON.parse(localStorage.getItem(KEY)||localStorage.getItem(LEGACY_KEY)||localStorage.getItem(OLDER_KEY)||'{}');return{version:6.3,settings:Object.assign({},defaults.settings,raw.settings||{}),records:raw.records||{},calendar:raw.calendar||{}}}catch{return structuredClone(defaults)}}
+function load(){try{const raw=JSON.parse(localStorage.getItem(KEY)||localStorage.getItem(LEGACY_KEY)||localStorage.getItem(OLDER_KEY)||'{}');return{version:7,settings:Object.assign({},defaults.settings,raw.settings||{}),records:raw.records||{},calendar:raw.calendar||{}}}catch{return structuredClone(defaults)}}
 function persist(){
   try{
     state.version=6;
@@ -393,7 +393,7 @@ function applyCloudState(cloud){
   applyingCloudState=true;
   try{
     state={
-      version:6.3,
+      version:7,
       settings:{...defaults.settings,...(cloud.settings||state.settings||{})},
       records:mergeRecordMaps(state.records||{},cloud.records||{}),
       calendar:{...(state.calendar||{}),...(cloud.calendar||{})}
@@ -418,7 +418,7 @@ window.addEventListener('attendance-cloud-status',e=>{
     head.className='cloud-header-status '+(s.state||'offline')
   }
   const signed=Boolean(s.signedIn);
-  if($('cloudSignIn'))$('cloudSignIn').hidden=signed;
+  if($('emailLoginForm'))$('emailLoginForm').hidden=signed;
   if($('cloudSignOut'))$('cloudSignOut').hidden=!signed;
   if($('cloudPush'))$('cloudPush').hidden=!signed;
   if($('cloudPull'))$('cloudPull').hidden=!signed
@@ -438,11 +438,20 @@ function setup(){document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{doc
 $('ledgerPeriod').onchange=renderLedger;
 $('prevLedgerPeriod').onclick=()=>{const i=Math.max(0,(+$('ledgerPeriod').value||0)-1);$('ledgerPeriod').value=String(i);renderLedger()};
 $('nextLedgerPeriod').onclick=()=>{const i=Math.min(11,(+$('ledgerPeriod').value||0)+1);$('ledgerPeriod').value=String(i);renderLedger()};$('saveHoliday').onclick=()=>{state.calendar[dialogDate]={type:$('holidayType').value,name:$('holidayName').value};persist();renderAll()};$('saveSettings').onclick=saveSettings;
-$('cloudSignIn').onclick=()=>window.dispatchEvent(new Event('attendance-cloud-signin'));
+
+$('cloudEmailSignIn').onclick=()=>{
+  window.dispatchEvent(new CustomEvent('attendance-cloud-email-signin',{
+    detail:{
+      email:$('cloudEmail').value.trim(),
+      password:$('cloudPassword').value
+    }
+  }))
+};
+$('cloudPassword').onkeydown=e=>{if(e.key==='Enter')$('cloudEmailSignIn').click()};
 $('cloudSignOut').onclick=()=>window.dispatchEvent(new Event('attendance-cloud-signout'));
 $('cloudPush').onclick=()=>window.dispatchEvent(new CustomEvent('attendance-cloud-push',{detail:structuredClone(state)}));
 $('cloudPull').onclick=()=>window.dispatchEvent(new Event('attendance-cloud-pull'));
-$('cloudDiagnose').onclick=()=>window.dispatchEvent(new Event('attendance-cloud-diagnose'));$('loginButton').onclick=login;$('logoutButton').onclick=logout;$('loginPassword').onkeydown=e=>{if(e.key==='Enter')login()};$('confirmPassword').onkeydown=e=>{if(e.key==='Enter')login()};$('exportJson').onclick=()=>download('attendance-backup.json',JSON.stringify(state,null,2),'application/json');$('importJson').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{const x=JSON.parse(r.result);state={version:6.3,settings:{...defaults.settings,...(x.settings||{})},records:x.records||{},calendar:x.calendar||{}};persist();renderAll();loadTodayForm();alert('復元しました')};r.readAsText(f)};$('exportCsv').onclick=exportCsv;$('importExcel').onchange=e=>{const f=e.target.files[0];if(f)importWorkbook(f)};$('resetData').onclick=()=>{if(confirm('全データを削除しますか？')){state=structuredClone(defaults);persist();renderAll();loadTodayForm()}};window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;$('installBtn').hidden=false});$('installBtn').onclick=async()=>{if(deferredPrompt){deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;$('installBtn').hidden=true}};let lastMobile=isMobileLedger();
+$('cloudDiagnose').onclick=()=>window.dispatchEvent(new Event('attendance-cloud-diagnose'));$('loginButton').onclick=login;$('logoutButton').onclick=logout;$('loginPassword').onkeydown=e=>{if(e.key==='Enter')login()};$('confirmPassword').onkeydown=e=>{if(e.key==='Enter')login()};$('exportJson').onclick=()=>download('attendance-backup.json',JSON.stringify(state,null,2),'application/json');$('importJson').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{const x=JSON.parse(r.result);state={version:7,settings:{...defaults.settings,...(x.settings||{})},records:x.records||{},calendar:x.calendar||{}};persist();renderAll();loadTodayForm();alert('復元しました')};r.readAsText(f)};$('exportCsv').onclick=exportCsv;$('importExcel').onchange=e=>{const f=e.target.files[0];if(f)importWorkbook(f)};$('resetData').onclick=()=>{if(confirm('全データを削除しますか？')){state=structuredClone(defaults);persist();renderAll();loadTodayForm()}};window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;$('installBtn').hidden=false});$('installBtn').onclick=async()=>{if(deferredPrompt){deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;$('installBtn').hidden=true}};let lastMobile=isMobileLedger();
 window.addEventListener('resize',()=>{const now=isMobileLedger();if(now!==lastMobile){lastMobile=now;const ledgerView=$('view-ledger');if(ledgerView&&ledgerView.classList.contains('active'))renderLedger()}});
 if(sessionValid()){$('lockScreen').hidden=true;renderAll();loadTodayForm()}else showLock();requestCloudStatus()}
 setup();

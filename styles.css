@@ -314,3 +314,28 @@
   font-size:.78rem;
   line-height:1.55;
 }
+
+
+/* ===== v7.0 email/password authentication ===== */
+.email-auth-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr auto;
+  gap:10px;
+  align-items:end;
+  margin:12px 0;
+}
+.email-auth-grid label{
+  margin:0;
+}
+.email-auth-grid .primary{
+  min-height:44px;
+  white-space:nowrap;
+}
+@media(max-width:720px){
+  .email-auth-grid{
+    grid-template-columns:1fr;
+  }
+  .email-auth-grid .primary{
+    width:100%;
+  }
+}
