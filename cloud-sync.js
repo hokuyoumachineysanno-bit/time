@@ -1,6 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
 import {
   getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect,
+  getRedirectResult, setPersistence, browserLocalPersistence,
   onAuthStateChanged, signOut
 } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js";
 import {
@@ -123,6 +124,10 @@ async function beginRealtime(u){
     console.error(e);status("error","同期エラー",e.message)
   })
 }
+function isMobileBrowser(){
+  return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+    || window.matchMedia("(max-width: 820px)").matches;
+}
 async function signIn(){
   if(!configured){
     status("error","Firebase未設定","firebase-config.jsへFirebase構成を貼り付けてください。");
@@ -130,10 +135,23 @@ async function signIn(){
   }
   const provider=new GoogleAuthProvider();
   provider.setCustomParameters({prompt:"select_account"});
+  if(isMobileBrowser()){
+    status("syncing","Googleへ移動","Googleログイン画面へ移動します…");
+    await signInWithRedirect(auth,provider);
+    return
+  }
   try{
     await signInWithPopup(auth,provider)
   }catch(e){
-    if(["auth/popup-blocked","auth/cancelled-popup-request","auth/operation-not-supported-in-this-environment"].includes(e.code)){
+    const redirectCodes=[
+      "auth/popup-blocked",
+      "auth/popup-closed-by-user",
+      "auth/cancelled-popup-request",
+      "auth/operation-not-supported-in-this-environment",
+      "auth/web-storage-unsupported"
+    ];
+    if(redirectCodes.includes(e.code)){
+      status("syncing","Googleへ移動","ポップアップを使用できないため、ログイン画面へ移動します…");
       await signInWithRedirect(auth,provider)
     }else{
       throw e
@@ -149,6 +167,16 @@ async function init(){
     const app=initializeApp(CONFIG);
     auth=getAuth(app);
     db=getFirestore(app);
+    await setPersistence(auth,browserLocalPersistence);
+    try{
+      const redirectResult=await getRedirectResult(auth);
+      if(redirectResult?.user){
+        status("syncing","ログイン完了","クラウド台帳へ接続しています…");
+      }
+    }catch(e){
+      console.error(e);
+      status("error","ログイン失敗",`${e.code||"Firebase"}: ${e.message}`);
+    }
     onAuthStateChanged(auth,async u=>{
       if(!u){
         user=null;
