@@ -339,3 +339,15 @@
     width:100%;
   }
 }
+
+
+/* ===== v7.1 Google authentication ===== */
+.google-auth-box{
+  display:grid;
+  gap:8px;
+  margin:12px 0;
+}
+.google-auth-box .primary{
+  min-height:46px;
+  width:min(100%,340px);
+}

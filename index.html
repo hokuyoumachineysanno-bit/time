@@ -7,8 +7,8 @@
   <meta name="description" content="締め日連動・過去編集・Excel取込対応の勤怠管理PWA">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=7.0.0">
-  <title>勤怠管理 v7.0</title>
+  <link rel="stylesheet" href="styles.css?v=7.1.0">
+  <title>勤怠管理 v7.1</title>
 </head>
 <body>
   <section id="lockScreen" class="lock-screen">
@@ -24,7 +24,7 @@
   </section>
 
   <header class="app-header">
-    <div><h1>勤怠管理 <small class="version-badge">v7.0</small></h1><p id="todayLabel"></p></div>
+    <div><h1>勤怠管理 <small class="version-badge">v7.1</small></h1><p id="todayLabel"></p></div>
     <div class="header-actions">
       <span id="cloudHeaderStatus" class="cloud-header-status offline">ローカル</span>
       <button id="installBtn" class="ghost" hidden>追加</button>
@@ -146,16 +146,11 @@
 
       <article class="card cloud-card">
         <h2>PC・スマホ同期（Firebase）</h2>
-        <p class="hint">メールアドレスとパスワードでログインすると、PCとスマホで同じ台帳を共有します。Googleログインは使用しません。</p>
+        <p class="hint">同じGoogleアカウントでログインすると、PCとスマホで共通台帳を共有します。保存先は <code>shared/attendance-main</code> です。</p>
 
-        <div id="emailLoginForm" class="email-auth-grid">
-          <label>メールアドレス
-            <input id="cloudEmail" type="email" autocomplete="username" placeholder="Firebaseに登録したメール">
-          </label>
-          <label>パスワード
-            <input id="cloudPassword" type="password" autocomplete="current-password" placeholder="Firebaseのパスワード">
-          </label>
-          <button id="cloudEmailSignIn" type="button" class="primary">メールで同期開始</button>
+        <div id="googleLoginForm" class="google-auth-box">
+          <button id="cloudGoogleSignIn" type="button" class="primary">Googleで同期開始</button>
+          <p class="hint">スマホでも最初はポップアップ方式を試し、利用できない場合だけ画面遷移方式へ切り替えます。</p>
         </div>
 
         <div class="cloud-status-box">
@@ -177,11 +172,11 @@
         <details class="cloud-help">
           <summary>初回設定</summary>
           <ol>
-            <li>Firebase Authenticationで「メール／パスワード」を有効化</li>
-            <li>Firebase Consoleの「ユーザーを追加」でログイン用ユーザーを作成</li>
-            <li><code>firestore.rules</code>の内容をFirestoreルールへ公開</li>
-            <li>PCでログイン後「この端末からクラウドへ送る」を押して既存台帳を移行</li>
-            <li>スマホで同じメールアドレスとパスワードを使ってログイン</li>
+            <li>Firebase AuthenticationでGoogleログインを有効化</li>
+            <li>承認済みドメインへGitHub Pagesのドメインを登録</li>
+            <li><code>firestore.rules</code>の内容をFirestoreへ公開</li>
+            <li>既存データが入ったPCでログインし「この端末からクラウドへ送る」を押す</li>
+            <li>スマホで同じGoogleアカウントへログインする</li>
           </ol>
         </details>
       </article>
@@ -204,8 +199,8 @@
   <dialog id="holidayDialog"><form method="dialog"><div class="dialog-title"><h2 id="holidayDateLabel">休日設定</h2><button value="cancel" class="secondary">閉じる</button></div><label>区分<select id="holidayType"><option>勤務日</option><option>所定休日</option><option>法定休日</option></select></label><label>名称<input id="holidayName" placeholder="祝日、夏季休暇など"></label><button id="saveHoliday" value="default" class="primary">保存</button></form></dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="firebase-config.js?v=7.0.0"></script>
-  <script type="module" src="cloud-sync.js?v=7.0.0"></script>
-  <script src="app.js?v=7.0.0"></script>
+  <script src="firebase-config.js?v=7.1.0"></script>
+  <script type="module" src="cloud-sync.js?v=7.1.0"></script>
+  <script src="app.js?v=7.1.0"></script>
 </body>
 </html>

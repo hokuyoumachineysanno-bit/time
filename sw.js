@@ -1,11 +1,11 @@
-const CACHE='attendance-v7.0-20260806';
+const CACHE='attendance-v7.1-20260807';
 const ASSETS=[
   './',
   './index.html',
-  './styles.css?v=7.0.0',
-  './app.js?v=7.0.0',
-  './firebase-config.js?v=7.0.0',
-  './cloud-sync.js?v=7.0.0',
+  './styles.css?v=7.1.0',
+  './app.js?v=7.1.0',
+  './firebase-config.js?v=7.1.0',
+  './cloud-sync.js?v=7.1.0',
   './manifest.webmanifest',
   './icon.svg'
 ];

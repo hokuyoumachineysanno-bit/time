@@ -1,7 +1,10 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
 import {
   getAuth,
-  signInWithEmailAndPassword,
+  GoogleAuthProvider,
+  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   setPersistence,
   browserLocalPersistence,
   onAuthStateChanged,
@@ -16,9 +19,10 @@ import {
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
 
-const VERSION = "7.0";
+const VERSION = "7.1";
 const CONFIG = window.FIREBASE_CONFIG || {};
 const LOCAL_KEYS = ["attendancePwaV6", "attendancePwaV5", "attendancePwaV4"];
+
 const configured =
   Boolean(CONFIG.apiKey) &&
   !String(CONFIG.apiKey).startsWith("PASTE_") &&
@@ -32,6 +36,7 @@ let unsubscribe = null;
 let pushTimer = null;
 let realtimeReady = false;
 let initialized = false;
+let redirectChecked = false;
 let lastCloudState = null;
 let lastError = null;
 let lastAction = "起動";
@@ -69,10 +74,6 @@ function hasMeaningfulLocalData(data = {}) {
   );
 }
 
-/*
-全端末が同じ共有台帳を使用します。
-Firestoreルールにより、ログイン済み利用者だけがアクセスできます。
-*/
 function stateRef() {
   if (!db || !user) {
     throw new Error("Firestoreまたはログイン情報がありません。");
@@ -82,7 +83,7 @@ function stateRef() {
 
 function normalizeState(value = {}) {
   return {
-    version: 7,
+    version: 7.1,
     settings: value.settings || {},
     records: value.records || {},
     calendar: value.calendar || {},
@@ -114,7 +115,7 @@ function mergeRecords(localRecords = {}, cloudRecords = {}) {
 
 function mergeStates(local = {}, cloud = {}) {
   return {
-    version: 7,
+    version: 7.1,
     settings: { ...(local.settings || {}), ...(cloud.settings || {}) },
     records: mergeRecords(local.records || {}, cloud.records || {}),
     calendar: { ...(local.calendar || {}), ...(cloud.calendar || {}) },
@@ -174,6 +175,7 @@ function diagnostics() {
     version: VERSION,
     configured,
     initialized,
+    redirectChecked,
     realtimeReady,
     online: navigator.onLine,
     origin: location.origin,
@@ -347,7 +349,7 @@ async function establishRealtime() {
   setStatus("online", "同期済", "PC・スマホ同期は有効です。");
 }
 
-async function emailSignIn(email, password) {
+async function googleSignIn() {
   if (!configured) {
     setStatus(
       "error",
@@ -362,17 +364,35 @@ async function emailSignIn(email, password) {
     return;
   }
 
-  if (!email || !password) {
-    setStatus(
-      "error",
-      "入力不足",
-      "メールアドレスとパスワードを入力してください。"
-    );
-    return;
-  }
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: "select_account" });
 
-  setStatus("syncing", "ログイン中", "Firebaseへログインしています…");
-  await signInWithEmailAndPassword(auth, email, password);
+  setStatus("syncing", "ログイン中", "Googleアカウントを確認しています…");
+
+  try {
+    // スマホでもまずポップアップを使う。
+    await signInWithPopup(auth, provider);
+  } catch (error) {
+    const redirectCodes = [
+      "auth/popup-blocked",
+      "auth/cancelled-popup-request",
+      "auth/operation-not-supported-in-this-environment",
+      "auth/web-storage-unsupported"
+    ];
+
+    if (redirectCodes.includes(error.code)) {
+      sessionStorage.setItem("attendanceGoogleRedirectPending", nowIso());
+      setStatus(
+        "syncing",
+        "Googleへ移動",
+        "ポップアップを使用できないため、画面遷移方式へ切り替えます…"
+      );
+      await signInWithRedirect(auth, provider);
+      return;
+    }
+
+    throw error;
+  }
 }
 
 async function processAccount(account) {
@@ -416,13 +436,33 @@ async function init() {
         setStatus(
           "offline",
           "未ログイン",
-          "メールアドレスとパスワードでログインしてください。"
+          "Googleアカウントでログインしてください。"
         );
         return;
       }
 
+      sessionStorage.removeItem("attendanceGoogleRedirectPending");
       processAccount(account);
     });
+
+    try {
+      const result = await getRedirectResult(auth);
+      redirectChecked = true;
+
+      if (result?.user) {
+        sessionStorage.removeItem("attendanceGoogleRedirectPending");
+        await processAccount(result.user);
+      }
+    } catch (error) {
+      redirectChecked = true;
+      lastError = error;
+      console.error(error);
+      setStatus(
+        "error",
+        "ログイン復元失敗",
+        `${error.code || "Firebase"}: ${error.message}`
+      );
+    }
 
     initialized = true;
     window.dispatchEvent(new Event("attendance-cloud-ready"));
@@ -440,23 +480,18 @@ window.addEventListener("attendance-local-change", event => {
   schedulePush(event.detail);
 });
 
-window.addEventListener("attendance-cloud-email-signin", event => {
-  const email = String(event.detail?.email || "").trim();
-  const password = String(event.detail?.password || "");
-
-  emailSignIn(email, password).catch(error => {
+window.addEventListener("attendance-cloud-google-signin", () => {
+  googleSignIn().catch(error => {
     lastError = error;
     console.error(error);
 
     const messages = {
-      "auth/invalid-credential":
-        "メールアドレスまたはパスワードが違います。",
-      "auth/invalid-email":
-        "メールアドレスの形式が正しくありません。",
+      "auth/popup-closed-by-user":
+        "Googleログイン画面が閉じられました。もう一度試してください。",
+      "auth/unauthorized-domain":
+        "このGitHub PagesドメインがFirebaseで承認されていません。",
       "auth/too-many-requests":
-        "ログイン試行が多すぎます。しばらく待ってください。",
-      "auth/user-disabled":
-        "このユーザーは無効化されています。"
+        "ログイン試行が多すぎます。しばらく待ってください。"
     };
 
     setStatus(
