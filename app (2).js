@@ -282,7 +282,12 @@ function openDayEdit(k){
   $('dayEditHoliday').textContent=`${h.type}${h.name?'・'+h.name:''}`;
   $('dayEditType').value=r.type||'';$('dayEditStart').value=r.start||'';$('dayEditEnd').value=r.end||'';$('dayEditOut').value=r.out||'';$('dayEditBack').value=r.back||'';$('dayEditNote').value=r.note||'';
   $('dayEditCalc').innerHTML=`<div><span>就労</span><strong>${hoursToClock(c.work)}</strong></div><div><span>時間外</span><strong>${hoursToClock(ot)}</strong></div><div><span>法定休日</span><strong>${hoursToClock(c.statutoryHolidayWork)}</strong></div><div><span>代休</span><strong>${c.compEarn?'+1日':'―'}</strong></div>`;
-  $('dayEditDialog').showModal()
+  const dialog=$('dayEditDialog');
+  if(!dialog)throw new Error('dayEditDialog not found');
+  if(dialog.open)return true;
+  if(typeof dialog.showModal==='function')dialog.showModal();
+  else dialog.setAttribute('open','');
+  return true
 }
 function saveOverviewDay(){
   const record={type:$('dayEditType').value,start:$('dayEditStart').value,end:$('dayEditEnd').value,out:$('dayEditOut').value,back:$('dayEditBack').value,note:$('dayEditNote').value};
@@ -729,21 +734,41 @@ function switchEmployee(employeeId){
 
 
 let deepLinkApplied=false;
+function overviewIndexForDate(date){
+  try{
+    const d=parseIso(date),periods=fiscalPeriods();
+    const idx=periods.findIndex(p=>d>=p.start&&d<=p.end);
+    return idx>=0?idx:0;
+  }catch{return 0}
+}
+function forceOpenPortalEditor(attempt=0){
+  if(!requestedDate||!requestedEdit)return;
+  try{
+    const period=$('overviewPeriod');
+    if(period){period.value=String(overviewIndexForDate(requestedDate));renderOverview()}
+    openDayEdit(requestedDate);
+    deepLinkApplied=true;
+    console.info('portal edit deep link opened',activeEmployeeId,requestedDate);
+  }catch(e){
+    console.warn('portal edit deep link retry',attempt,e);
+    if(attempt<12)setTimeout(()=>forceOpenPortalEditor(attempt+1),150);
+    else{
+      const tab=document.querySelector('.tab[data-view="ledger"]');
+      if(tab)tab.click();
+      alert(`${activeEmployeeId} ${requestedDate} の編集画面を直接開けませんでした。編集タブから対象日を修正してください。`);
+    }
+  }
+}
 function applyPortalDeepLink(){
-  if(deepLinkApplied)return;
-  if(!requestedDate)return;
-  deepLinkApplied=true;
-  // 月間を表示した上で、その日の日別編集を直接開く。
+  if(deepLinkApplied||!requestedDate)return;
   try{
     const tab=document.querySelector('.tab[data-view="overview"]');
-    if(tab){
-      document.querySelectorAll('.tab,.view').forEach(x=>x.classList.remove('active'));
-      tab.classList.add('active');
-      const view=$('view-overview');if(view)view.classList.add('active');
-      renderOverview();
-    }
-    if(requestedEdit)openDayEdit(requestedDate);
-  }catch(e){console.error('portal deep link failed',e)}
+    if(tab)tab.click();
+    const period=$('overviewPeriod');
+    if(period){period.value=String(overviewIndexForDate(requestedDate));renderOverview()}
+    if(requestedEdit)setTimeout(()=>forceOpenPortalEditor(0),50);
+    else deepLinkApplied=true;
+  }catch(e){console.error('portal deep link failed',e);if(requestedEdit)setTimeout(()=>forceOpenPortalEditor(0),100)}
 }
 
 
@@ -785,5 +810,7 @@ try{
   if(msg && !$('lockScreen')?.hidden)msg.textContent='一部初期化に失敗しましたが、ログインは可能です。';
 }
 
+window.addEventListener('attendance-cloud-state',()=>{if(requestedEdit)setTimeout(()=>forceOpenPortalEditor(0),100)});
+window.addEventListener('attendance-employee-change',()=>{if(requestedEdit)setTimeout(()=>forceOpenPortalEditor(0),100)});
 window.HokuyouAttendanceEmployee=()=>activeEmployeeId;
 window.HokuyouAttendanceEmployeeStore=()=>employeeStore();
