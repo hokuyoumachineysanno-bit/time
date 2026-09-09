@@ -106,3 +106,15 @@ textarea{min-height:68px}
  .who .small{font-size:9px}
  .actions{display:flex;gap:6px;flex-wrap:wrap}
 }
+
+/* v1.1.1 task actions fix */
+.modalfoot{gap:8px}
+.task-action-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:100%;grid-column:1/-1}
+.task-action-row button{width:100%}
+.task-action-row .postpone{background:#e0e7ff;color:#3730a3}
+.task-action-row .pending2{background:#fef3c7;color:#92400e}
+.task-action-row .danger2{background:#fee2e2;color:#991b1b}
+@media(max-width:950px){
+  .task-action-row{grid-template-columns:1fr 1fr 1fr}
+  .modalfoot{padding-bottom:max(12px,env(safe-area-inset-bottom))}
+}

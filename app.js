@@ -35,29 +35,172 @@ function renderQuarter(){$('quarter').innerHTML=[['Q3 7-9月',[7,8,9]],['Q4 10-1
 function renderMonth(){const[y,m]=currentMonth.split('-').map(Number),last=new Date(y,m,0).getDate(),first=new Date(y,m-1,1).getDay();let cells='';for(let i=0;i<first;i++)cells+='<div></div>';for(let d=1;d<=last;d++){const date=`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`,hs=db.holidays.filter(h=>h.date===date),ts=db.tasks.filter(t=>t.date===date),leave=db.attendance.filter(a=>a.date===date&&a.type!=='出勤'),cls=hs.some(h=>h.type==='statutory')?'holiday-bg':hs.length?'company-bg':'';cells+=`<div class="daycell ${cls}" data-date="${date}"><div class=daynum>${d}</div>${hs.map(h=>`<div class="pill ${h.type==='statutory'?'holiday':'companyHoliday'}">${h.name}</div>`).join('')}${leave.map(a=>`<div class="pill companyHoliday">${empName(a.employeeId)} ${a.type}</div>`).join('')}${ts.map(t=>`<div class="pill ${t.status}">${t.id} ${t.name}<br>${empName(t.employeeId)}</div>`).join('')}</div>`}$('month').innerHTML=`<div class=panel><div class=daynav><button id=mPrev class=ghost>←前月</button><div class=datebox>${y}年${m}月</div><button id=mNext class=ghost>翌月→</button></div><div class=calendar-scroll><div class=calendar-head>${['日','月','火','水','木','金','土'].map(x=>`<div>${x}</div>`).join('')}</div><div class=calendar>${cells}</div></div></div>`;$('mPrev').onclick=()=>{let d=new Date(currentMonth+'-01');d.setMonth(d.getMonth()-1);currentMonth=d.toISOString().slice(0,7);renderMonth()};$('mNext').onclick=()=>{let d=new Date(currentMonth+'-01');d.setMonth(d.getMonth()+1);currentMonth=d.toISOString().slice(0,7);renderMonth()};document.querySelectorAll('[data-date]').forEach(c=>c.onclick=()=>{currentDay=c.dataset.date;showView('day');renderDay()})}
 function rangeDef(){return dayRange==='am'?{s:0,e:12,h:[0,1,2,3,4,5,6,7,8,9,10,11]}:dayRange==='pm'?{s:12,e:24,h:[12,13,14,15,16,17,18,19,20,21,22,23]}:{s:0,e:24,h:[0,2,4,6,8,10,12,14,16,18,20,22]}}
 function taskModal(t,presetProject=''){
- const edit=!!t,t0=t||{id:nextTaskId(),date:currentDay,name:'',category:'客先案件',projectId:presetProject,employeeId:activeEmployees()[0]?.id||'',vehicleId:'',start:'08:30',end:'17:30',status:'confirmed',urgent:false,passengerIds:[],history:[]},cats=['客先案件','社内案件','その他'];
- openModal(edit?'タスク編集':'タスク追加',`<div class=task-kind>${cats.map(k=>`<button type=button class="kindbtn ${t0.category===k?'active':''}" data-kind="${k}">${k}</button>`).join('')}</div><input type=hidden id=mtCategory value="${t0.category||'客先案件'}"><div class=form>
- <div><label>日付</label><input id=mtDate type=date value="${t0.date}"></div><div><label>ID</label><input id=mtId value="${t0.id}" ${edit?'readonly':''}></div>
- <div><label>案件</label><select id=mtProject><option value="">案件なし</option>${db.projects.filter(p=>p.status!=='完了'||p.id===t0.projectId).map(p=>`<option value="${p.id}" ${p.id===t0.projectId?'selected':''}>${projectLabel(p.id)}</option>`).join('')}</select></div><div><label>内容</label><input id=mtName value="${t0.name||''}" placeholder="例：現調、据付工事、見積作成"></div>
- <div><label>開始</label><input id=mtStart type=time step=900 value="${t0.start}"></div><div><label>終了</label><input id=mtEnd type=time step=900 value="${t0.end}"></div>
- <div><label>主担当</label><select id=mtEmployee>${activeEmployees().map(x=>`<option value="${x.id}" ${x.id===t0.employeeId?'selected':''}>${x.name}</option>`).join('')}</select></div><div><label>車両</label><select id=mtVehicle><option value="">-</option>${db.vehicles.filter(v=>v.active||v.id===t0.vehicleId).map(v=>`<option value="${v.id}" ${v.id===t0.vehicleId?'selected':''}>${v.name}</option>`).join('')}</select></div>
- <div style="grid-column:1/-1"><label>補助</label><div class=passenger-grid>${activeEmployees().filter(x=>x.id!==t0.employeeId).map(x=>`<label><input type=checkbox data-helper="${x.id}" ${(t0.passengerIds||[]).includes(x.id)?'checked':''}>${x.name}</label>`).join('')}</div></div>
- <div><label>状態</label><select id=mtStatus>${[['confirmed','確定'],['provisional','仮予定'],['pending','ペンディング'],['unassigned','未割当']].map(([v,l])=>`<option value="${v}" ${v===t0.status?'selected':''}>${l}</option>`).join('')}</select></div><div class=urgentbox><input id=mtUrgent type=checkbox ${t0.urgent?'checked':''}> 🔴 緊急対応</div></div>
- ${edit?`<div class=history><b>変更履歴</b>${(t0.history||[]).slice().reverse().map(h=>`<div class=history-item>${h.at||''}　${h.text}</div>`).join('')||'<div class=history-item>履歴なし</div>'}</div>`:''}`,()=>{
- const n={...t0,id:$('mtId').value,date:$('mtDate').value,name:$('mtName').value.trim()||'未記入',category:$('mtCategory').value,type:$('mtCategory').value,projectId:$('mtProject').value,employeeId:$('mtEmployee').value,vehicleId:$('mtVehicle').value,start:$('mtStart').value,end:$('mtEnd').value,status:$('mtStatus').value,urgent:$('mtUrgent').checked,passengerIds:[...$('modalBody').querySelectorAll('[data-helper]:checked')].map(x=>x.dataset.helper)};
- if(timeNum(n.end)<=timeNum(n.start))return alert('終了時刻を確認してください');if(edit){n.history=[...(t0.history||[]),{at:new Date().toLocaleString('ja-JP'),text:'タスク内容を編集'}];db.tasks[db.tasks.findIndex(x=>x.id===t.id)]=n}else db.tasks.push(n);currentDay=n.date;save();closeModal();renderAll();showView('day')});
- document.querySelectorAll('[data-kind]').forEach(b=>b.onclick=()=>{$('mtCategory').value=b.dataset.kind;document.querySelectorAll('[data-kind]').forEach(x=>x.classList.toggle('active',x===b))});
- if(edit){const foot=$('modal').querySelector('.modalfoot'),extra=document.createElement('div');extra.className='task-actions';extra.style.gridColumn='1/-1';extra.innerHTML='<button id=postponeBtn class=postpone>日延べ</button><button id=pendingBtn class=pending2>ペンディング</button><button id=deleteTaskBtn class=danger2>削除</button>';foot.prepend(extra);$('postponeBtn').onclick=()=>postponeTask(t);$('pendingBtn').onclick=()=>{const x=db.tasks.find(a=>a.id===t.id);x.status='pending';x.history=[...(x.history||[]),{at:new Date().toLocaleString('ja-JP'),text:'ペンディングへ変更'}];save();closeModal();renderAll();showView('day')};$('deleteTaskBtn').onclick=()=>{if(confirm('このタスクを削除しますか？')){db.tasks=db.tasks.filter(a=>a.id!==t.id);save();closeModal();renderAll();showView('day')}}}
+ const edit=!!t;
+ const t0=t||{
+   id:nextTaskId(),date:currentDay,name:'',category:'客先案件',
+   projectId:presetProject,employeeId:activeEmployees()[0]?.id||'',
+   vehicleId:'',start:'08:30',end:'17:30',status:'confirmed',
+   urgent:false,passengerIds:[],history:[]
+ };
+ const cats=['客先案件','社内案件','その他'];
+
+ openModal(edit?'タスク編集':'タスク追加',`
+  <div class=task-kind>
+   ${cats.map(k=>`<button type=button class="kindbtn ${t0.category===k?'active':''}" data-kind="${k}">${k}</button>`).join('')}
+  </div>
+  <input type=hidden id=mtCategory value="${t0.category||'客先案件'}">
+
+  <div class=form>
+   <div><label>日付</label><input id=mtDate type=date value="${t0.date}"></div>
+   <div><label>ID</label><input id=mtId value="${t0.id}" ${edit?'readonly':''}></div>
+
+   <div><label>案件</label>
+    <select id=mtProject>
+     <option value="">案件なし</option>
+     ${db.projects.filter(p=>p.status!=='完了'||p.id===t0.projectId).map(p=>`<option value="${p.id}" ${p.id===t0.projectId?'selected':''}>${projectLabel(p.id)}</option>`).join('')}
+    </select>
+   </div>
+
+   <div><label>内容</label><input id=mtName value="${t0.name||''}" placeholder="例：客先修理、据付工事、見積作成"></div>
+
+   <div><label>開始</label><input id=mtStart type=time step=900 value="${t0.start}"></div>
+   <div><label>終了</label><input id=mtEnd type=time step=900 value="${t0.end}"></div>
+
+   <div><label>主担当</label>
+    <select id=mtEmployee>
+     ${activeEmployees().map(x=>`<option value="${x.id}" ${x.id===t0.employeeId?'selected':''}>${x.name}</option>`).join('')}
+    </select>
+   </div>
+
+   <div><label>車両</label>
+    <select id=mtVehicle>
+     <option value="">-</option>
+     ${db.vehicles.filter(v=>v.active||v.id===t0.vehicleId).map(v=>`<option value="${v.id}" ${v.id===t0.vehicleId?'selected':''}>${v.name}</option>`).join('')}
+    </select>
+   </div>
+
+   <div style="grid-column:1/-1"><label>補助</label>
+    <div class=passenger-grid>
+     ${activeEmployees().filter(x=>x.id!==t0.employeeId).map(x=>`<label><input type=checkbox data-helper="${x.id}" ${(t0.passengerIds||[]).includes(x.id)?'checked':''}>${x.name}</label>`).join('')}
+    </div>
+   </div>
+
+   <div><label>状態</label>
+    <select id=mtStatus>
+     ${[
+       ['confirmed','確定'],
+       ['provisional','仮予定'],
+       ['pending','ペンディング'],
+       ['unassigned','未割当']
+     ].map(([v,l])=>`<option value="${v}" ${v===t0.status?'selected':''}>${l}</option>`).join('')}
+    </select>
+   </div>
+
+   <div class=urgentbox>
+    <input id=mtUrgent type=checkbox ${t0.urgent?'checked':''}> 🔴 緊急対応
+   </div>
+  </div>
+
+  ${edit?`<div class=history>
+    <b>変更履歴</b>
+    ${(t0.history||[]).slice().reverse().map(h=>`<div class=history-item>${h.at||''}　${h.text}</div>`).join('')||'<div class=history-item>履歴なし</div>'}
+  </div>`:''}
+ `,()=>{
+   const n={
+     ...t0,
+     id:$('mtId').value,
+     date:$('mtDate').value,
+     name:$('mtName').value.trim()||'未記入',
+     category:$('mtCategory').value,
+     type:$('mtCategory').value,
+     projectId:$('mtProject').value,
+     employeeId:$('mtEmployee').value,
+     vehicleId:$('mtVehicle').value,
+     start:$('mtStart').value,
+     end:$('mtEnd').value,
+     status:$('mtStatus').value,
+     urgent:$('mtUrgent').checked,
+     passengerIds:[...$('modalBody').querySelectorAll('[data-helper]:checked')].map(x=>x.dataset.helper)
+   };
+
+   if(timeNum(n.end)<=timeNum(n.start))return alert('終了時刻を確認してください');
+
+   if(edit){
+     n.history=[...(t0.history||[]),{
+       at:new Date().toLocaleString('ja-JP'),
+       text:'タスク内容を編集'
+     }];
+     const idx=db.tasks.findIndex(x=>x.id===t.id);
+     if(idx>=0)db.tasks[idx]=n;
+   }else{
+     db.tasks.push(n);
+   }
+
+   currentDay=n.date;
+   save();
+   closeModal();
+   renderAll();
+   showView('day');
+ });
+
+ document.querySelectorAll('[data-kind]').forEach(b=>b.onclick=()=>{
+   $('mtCategory').value=b.dataset.kind;
+   document.querySelectorAll('[data-kind]').forEach(x=>x.classList.toggle('active',x===b));
+ });
+
+ if(edit){
+   const foot=$('modal').querySelector('.modalfoot');
+   const row=document.createElement('div');
+   row.className='task-action-row';
+   row.innerHTML=`
+    <button type=button id=postponeBtn class=postpone>日延べ</button>
+    <button type=button id=pendingBtn class=pending2>ペンディング</button>
+    <button type=button id=deleteTaskBtn class=danger2>削除</button>
+   `;
+   foot.prepend(row);
+
+   $('postponeBtn').onclick=()=>postponeTask(t);
+
+   $('pendingBtn').onclick=()=>{
+     const x=db.tasks.find(a=>a.id===t.id);
+     if(!x)return;
+     x.status='pending';
+     x.history=[...(x.history||[]),{
+       at:new Date().toLocaleString('ja-JP'),
+       text:'ペンディングへ変更'
+     }];
+     save();
+     closeModal();
+     renderAll();
+     showView('day');
+   };
+
+   $('deleteTaskBtn').onclick=()=>{
+     if(!confirm(`タスク ${t.id}「${t.name}」を削除しますか？\n\n誤入力・重複登録など、本当に存在しなかったタスク向けです。`))return;
+     db.tasks=db.tasks.filter(a=>a.id!==t.id);
+     save();
+     closeModal();
+     renderAll();
+     showView('day');
+   };
+ }
 }
 function postponeTask(t){const urg=db.tasks.filter(x=>x.urgent&&x.id!==t.id);openModal('タスクを日延べ',`<div class=form><div><label>現在日</label><input value="${t.date}" disabled></div><div><label>移動先</label><input id=ppDate type=date value="${addDays(t.date,1)}"></div><div><label>理由</label><select id=ppReason><option>通常変更</option><option>客先都合</option><option>社内都合</option><option>前工程遅延</option><option>緊急対応による押出し</option></select></div><div><label>原因となった緊急タスク</label><select id=ppEmergency><option value="">-</option>${urg.map(x=>`<option value="${x.id}">${x.date} ${x.id} ${x.name}</option>`).join('')}</select></div></div>`,()=>{const x=db.tasks.find(a=>a.id===t.id),old=x.date,n=$('ppDate').value;if(!n)return;x.date=n;x.history=[...(x.history||[]),{at:new Date().toLocaleString('ja-JP'),text:`日延べ ${old} → ${n} / ${$('ppReason').value}${$('ppEmergency').value?' / 原因 '+$('ppEmergency').value:''}`}];x.postponeReason=$('ppReason').value;x.causedByEmergencyId=$('ppEmergency').value||'';save();currentDay=n;closeModal();renderAll();showView('day')})}
 function renderDay(){
  const ts=db.tasks.filter(t=>t.date===currentDay),hs=db.holidays.filter(h=>h.date===currentDay),rd=rangeDef(),span=rd.e-rd.s;let rows=`<div class="grow head"><div class=who>氏名 / 車両</div><div class=track>${timeBands(rd.s,rd.e)}${rd.h.map(h=>`<div class=hour>${h}</div>`).join('')}</div></div>`;
  activeEmployees().forEach(e=>{const a=db.attendance.find(x=>x.employeeId===e.id&&x.date===currentDay);let bars='';if(a&&a.type!=='出勤')bars+=`<div class="bar leave" style="left:0;width:100%">${a.type}</div>`;const my=ts.filter(t=>t.employeeId===e.id||(t.passengerIds||[]).includes(e.id));my.forEach(t=>{let st=Math.max(timeNum(t.start),rd.s),en=Math.min(timeNum(t.end),rd.e);if(en<=rd.s||st>=rd.e)return;const l=(st-rd.s)/span*100,w=(en-st)/span*100,isHelp=(t.passengerIds||[]).includes(e.id);bars+=`<div class="bar ${taskClass(t)} ${t.urgent?'urgent':''} task-click" data-bar="${t.id}" style="left:${l}%;width:${w}%">${t.urgent?'🔴 ':''}${isHelp?'↳補助 ':''}${t.id} ${t.name}</div>`});const cars=[...new Set(my.filter(t=>t.vehicleId).map(t=>vehName(t.vehicleId)))].join(', ');const att=attendanceFor(e.id,currentDay);const attText=att?(att.type==='出勤'?`勤怠 ${att.work||0}h${att.overtime?` / 残業 ${att.overtime}h`:''}`:`${att.type}`):'勤怠未入力';
  rows+=`<div class=grow><div class=who><div class=ename>${e.name}</div><div class=car>${cars||'車両 -'}</div><div class=small>${attText}</div></div><div class=track>${timeBands(rd.s,rd.e)}${bars}</div></div>`});
- const urg=ts.filter(t=>t.urgent);$('day').innerHTML=`<div class=panel><div class=daynav><button id=dPrev class=ghost>←前日</button><div class=datebox>${dateLabel(currentDay)}</div><button id=dNext class=ghost>翌日→</button></div>${hs.map(h=>`<div class="banner ${h.type==='statutory'?'stat':'company'}">${h.name}</div>`).join('')}${urg.length?`<div class=banner style="background:#fff1f2;color:#991b1b">🔴 緊急 ${urg.length}件：${urg.map(x=>`${x.id} ${x.name}`).join(' / ')}</div>`:''}<div class=timelegend><span class=l-deep>深夜 0–5 / 22–24</span><span class=l-early>早朝 5–8:30</span><span class=l-normal>基準 8:30–17:30</span><span class=l-night>夜間 17:30–22</span></div><div class=toolbar><div class=seg><button data-range=all class="${dayRange==='all'?'active':''}">終日 0–24</button><button data-range=am class="${dayRange==='am'?'active':''}">午前 0–12</button><button data-range=pm class="${dayRange==='pm'?'active':''}">午後 12–24</button></div><div class=actions><button id=openAttendance class=ghost>この日の勤怠</button><button id=addTask class=primary>＋タスク</button></div></div><div class="day-gantt" data-range="${dayRange}"><div class=gantt-inner>${rows}</div></div><p class=small>補助欄の社員にも同じ時間バーを自動反映。赤枠＝緊急。</p></div><div class=panel><h3>この日のタスク</h3><div class=tablewrap><table><tr><th>ID</th><th>時間</th><th>区分</th><th>内容</th><th>案件</th><th>担当</th><th>補助</th><th>状態</th><th></th></tr>${ts.map(t=>`<tr><td>${t.urgent?'<span class=urgent-badge>緊急</span><br>':''}${t.id}</td><td>${t.start}-${t.end}</td><td>${t.category||t.type}</td><td>${t.name}</td><td>${projectLabel(t.projectId)}</td><td>${empName(t.employeeId)}</td><td>${(t.passengerIds||[]).map(empName).join('、')||'-'}</td><td><span class="badge ${statusBadge(t.status)} ${t.status}">${t.status==='pending'?'ペンディング':statusText(t.status)}</span></td><td><button class=ghost data-te="${t.id}">編集</button></td></tr>`).join('')}</table></div></div>`;$('dPrev').onclick=()=>{currentDay=addDays(currentDay,-1);syncMonthToDay();renderDay()};
+ const urg=ts.filter(t=>t.urgent);$('day').innerHTML=`<div class=panel><div class=daynav><button id=dPrev class=ghost>←前日</button><div class=datebox>${dateLabel(currentDay)}</div><button id=dNext class=ghost>翌日→</button></div>${hs.map(h=>`<div class="banner ${h.type==='statutory'?'stat':'company'}">${h.name}</div>`).join('')}${urg.length?`<div class=banner style="background:#fff1f2;color:#991b1b">🔴 緊急 ${urg.length}件：${urg.map(x=>`${x.id} ${x.name}`).join(' / ')}</div>`:''}<div class=timelegend><span class=l-deep>深夜 0–5 / 22–24</span><span class=l-early>早朝 5–8:30</span><span class=l-normal>基準 8:30–17:30</span><span class=l-night>夜間 17:30–22</span></div><div class=toolbar><div class=seg><button data-range=all class="${dayRange==='all'?'active':''}">終日 0–24</button><button data-range=am class="${dayRange==='am'?'active':''}">午前 0–12</button><button data-range=pm class="${dayRange==='pm'?'active':''}">午後 12–24</button></div><div class=actions><button id=openAttendance class=ghost>この日の勤怠</button><button id=addTask class=primary>＋タスク</button></div></div><div class="day-gantt" data-range="${dayRange}"><div class=gantt-inner>${rows}</div></div><p class=small>補助欄の社員にも同じ時間バーを自動反映。赤枠＝緊急。</p></div><div class=panel><h3>この日のタスク</h3><div class=tablewrap><table><tr><th>ID</th><th>時間</th><th>区分</th><th>内容</th><th>案件</th><th>担当</th><th>補助</th><th>状態</th><th></th></tr>${ts.map(t=>`<tr><td>${t.urgent?'<span class=urgent-badge>緊急</span><br>':''}${t.id}</td><td>${t.start}-${t.end}</td><td>${t.category||t.type}</td><td>${t.name}</td><td>${projectLabel(t.projectId)}</td><td>${empName(t.employeeId)}</td><td>${(t.passengerIds||[]).map(empName).join('、')||'-'}</td><td><span class="badge ${statusBadge(t.status)} ${t.status}">${t.status==='pending'?'ペンディング':statusText(t.status)}</span></td><td><button class=ghost data-te="${t.id}">編集</button> <button class=danger data-td="${t.id}">削除</button></td></tr>`).join('')}</table></div></div>`;$('dPrev').onclick=()=>{currentDay=addDays(currentDay,-1);syncMonthToDay();renderDay()};
  $('dNext').onclick=()=>{currentDay=addDays(currentDay,1);syncMonthToDay();renderDay()};
  $('openAttendance').onclick=()=>{renderAttendance();showView('attendance')};
- $('addTask').onclick=()=>taskModal(null);document.querySelectorAll('[data-range]').forEach(b=>b.onclick=()=>{dayRange=b.dataset.range;renderDay()});document.querySelectorAll('[data-te],[data-bar]').forEach(b=>b.onclick=()=>taskModal(db.tasks.find(t=>t.id===(b.dataset.te||b.dataset.bar))))}
+ $('addTask').onclick=()=>taskModal(null);document.querySelectorAll('[data-range]').forEach(b=>b.onclick=()=>{dayRange=b.dataset.range;renderDay()});document.querySelectorAll('[data-te],[data-bar]').forEach(b=>b.onclick=()=>taskModal(db.tasks.find(t=>t.id===(b.dataset.te||b.dataset.bar))));
+ document.querySelectorAll('[data-td]').forEach(b=>b.onclick=()=>{
+   const t=db.tasks.find(x=>x.id===b.dataset.td);
+   if(!t)return;
+   if(!confirm(`タスク ${t.id}「${t.name}」を削除しますか？`))return;
+   db.tasks=db.tasks.filter(x=>x.id!==t.id);
+   save();renderAll();showView('day');
+ })}
 function renderAttendance(){const daily=db.attendance.filter(a=>a.date===currentDay);$('attendance').innerHTML=`<div class="banner info">実機テスト用：予定と同じ社員ID・日付・会社カレンダーを使う勤怠画面。ここで入れた休暇は日フォーカスにも反映されます。</div><div class=panel><div class=daynav><button id=aPrev class=ghost>←前日</button><div class=datebox>${dateLabel(currentDay)}</div><button id=aNext class=ghost>翌日→</button></div><p><button id=backToDay class=ghost>← この日の予定</button> <button id=aAdd class=primary>＋勤怠追加</button></p><div class=tablewrap><table><tr><th>社員</th><th>区分</th><th>就労</th><th>時間外</th><th></th></tr>${daily.map(a=>`<tr><td>${empName(a.employeeId)}</td><td>${a.type}</td><td>${a.work}h</td><td>${a.overtime}h</td><td><button class=ghost data-ae="${a.employeeId}">編集</button></td></tr>`).join('')}</table></div></div><div class=panel><h3>年間サマリー</h3><div class=tablewrap><table><tr><th>社員</th><th>休日</th><th>有休</th><th>年間就労</th><th>時間外</th><th>36協定</th></tr>${db.attendanceSummary.map(x=>`<tr><td>${empName(x.employeeId)}</td><td>${x.holidaysTaken}/${x.annualHolidays}</td><td>${x.paidLeaveTaken}</td><td>${x.annualWork}h</td><td>${x.overtime}h</td><td>${x.agreementPct}%</td></tr>`).join('')}</table></div></div>`;$('aPrev').onclick=()=>{currentDay=addDays(currentDay,-1);syncMonthToDay();renderAttendance()};
  $('aNext').onclick=()=>{currentDay=addDays(currentDay,1);syncMonthToDay();renderAttendance()};
  $('backToDay').onclick=()=>{renderDay();showView('day')};

@@ -401,3 +401,8 @@
   .overview-inline-head{align-items:flex-start;flex-direction:column;gap:2px}
   .overview-inline-actions button{flex:1 1 120px}
 }
+
+/* v8.2 employee switcher */
+.employee-switcher{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--muted,#64748b);background:#fff;border:1px solid #dbe3ee;border-radius:9px;padding:5px 7px}
+.employee-switcher select{border:0;background:transparent;font:inherit;color:#1f2937;min-width:130px;outline:none}
+@media(max-width:720px){.app-header{align-items:flex-start}.header-actions{flex-wrap:wrap;justify-content:flex-end}.employee-switcher{order:-1;width:100%;justify-content:space-between}.employee-switcher select{flex:1}}
