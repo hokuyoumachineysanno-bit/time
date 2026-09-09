@@ -377,3 +377,27 @@
   .overview-table{min-width:680px;font-size:.88rem}.overview-table th,.overview-table td{padding:8px 7px}.overview-table .sticky-day{min-width:67px}.overview-note{max-width:120px}
   .history-row{grid-template-columns:90px 1fr}.history-row>div:last-child{grid-column:1/-1}.day-edit-times{grid-template-columns:1fr 1fr}.day-edit-calc{grid-template-columns:1fr 1fr}
 }
+
+
+/* ===== v8.1 月間ビュー直接編集 ===== */
+[data-overview-date]{cursor:pointer}
+[data-overview-date].is-editing{outline:2px solid var(--accent);outline-offset:-2px}
+.overview-inline-editor td{padding:12px!important;background:var(--card)!important;border-bottom:2px solid var(--accent)}
+.overview-inline-head{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:10px}
+.overview-inline-head span{font-size:.85rem;color:var(--muted)}
+.overview-inline-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+.overview-inline-grid label{display:grid;gap:4px;min-width:0;font-size:.82rem;color:var(--muted)}
+.overview-inline-grid input,.overview-inline-grid select,.overview-inline-grid textarea{width:100%;min-width:0;min-height:42px;font-size:16px}
+.overview-inline-grid .wide{grid-column:1/-1}
+.overview-inline-preview{display:flex;flex-wrap:wrap;gap:8px 16px;margin:10px 0;padding:8px 10px;border-radius:8px;background:var(--bg);font-size:.88rem}
+.overview-inline-preview span{white-space:nowrap}
+.overview-inline-actions{display:flex;flex-wrap:wrap;gap:8px}
+.overview-inline-actions button{min-height:42px}
+.overview-save-flash{animation:overviewSaveFlash .8s ease-out}
+@keyframes overviewSaveFlash{0%{box-shadow:inset 0 0 0 999px rgba(67,160,71,.18)}100%{box-shadow:inset 0 0 0 999px rgba(67,160,71,0)}}
+@media(max-width:720px){
+  .overview-inline-grid{grid-template-columns:1fr 1fr}
+  .overview-inline-grid .wide{grid-column:1/-1}
+  .overview-inline-head{align-items:flex-start;flex-direction:column;gap:2px}
+  .overview-inline-actions button{flex:1 1 120px}
+}

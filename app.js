@@ -1,13 +1,13 @@
 
 'use strict';
 const KEY='attendancePwaV6',LEGACY_KEY='attendancePwaV5',OLDER_KEY='attendancePwaV4',AUTH_KEY=KEY+'.authHash',SESSION_KEY=KEY+'.sessionUntil',SESSION_DAYS=30;
-const defaults={version:8,settings:{fiscalYear:new Date().getFullYear(),fiscalStartMonth:4,fiscalStartDay:21,cutoffDay:20,annualHolidayTarget:110,standardHours:8,baseBreak:1,extraBreak:.25,extraBreakAfter:'18:00',roundMinutes:15,roundStart:'切上',roundEnd:'切捨',earlyStart:'05:00',normalStart:'08:30',normalEnd:'17:30',nightStart:'22:00',monthOtLimit:45,yearOtLimit:360},records:{},calendar:{},holidayHistory:[]};
+const defaults={version:8.1,settings:{fiscalYear:new Date().getFullYear(),fiscalStartMonth:4,fiscalStartDay:21,cutoffDay:20,annualHolidayTarget:110,standardHours:8,baseBreak:1,extraBreak:.25,extraBreakAfter:'18:00',roundMinutes:15,roundStart:'切上',roundEnd:'切捨',earlyStart:'05:00',normalStart:'08:30',normalEnd:'17:30',nightStart:'22:00',monthOtLimit:45,yearOtLimit:360},records:{},calendar:{},holidayHistory:[]};
 let state=load(),dialogDate='',editDate='',deferredPrompt=null,applyingCloudState=false;
 const $=id=>document.getElementById(id),pad=n=>String(n).padStart(2,'0');
-function load(){try{const raw=JSON.parse(localStorage.getItem(KEY)||localStorage.getItem(LEGACY_KEY)||localStorage.getItem(OLDER_KEY)||'{}');return{version:8,settings:Object.assign({},defaults.settings,raw.settings||{}),records:raw.records||{},calendar:raw.calendar||{},holidayHistory:Array.isArray(raw.holidayHistory)?raw.holidayHistory:[]}}catch{return structuredClone(defaults)}}
+function load(){try{const raw=JSON.parse(localStorage.getItem(KEY)||localStorage.getItem(LEGACY_KEY)||localStorage.getItem(OLDER_KEY)||'{}');return{version:8.1,settings:Object.assign({},defaults.settings,raw.settings||{}),records:raw.records||{},calendar:raw.calendar||{},holidayHistory:Array.isArray(raw.holidayHistory)?raw.holidayHistory:[]}}catch{return structuredClone(defaults)}}
 function persist(){
   try{
-    state.version=8;
+    state.version=8.1;
     const text=JSON.stringify(state);
     localStorage.setItem(KEY,text);
     const check=localStorage.getItem(KEY);
@@ -178,7 +178,48 @@ function renderOverview(){
     const remain=Math.max(0,40-w.basis);
     return `<article class="week-card ${cls}"><div class="week-range">${w.start.getMonth()+1}/${w.start.getDate()}〜${w.end.getMonth()+1}/${w.end.getDate()}</div><div class="week-values"><span>40h判定</span><b>${hoursToClock(w.basis)}</b><span>${w.basis<40?'40hまで残':'時間外'}</span><b>${w.basis<40?hoursToClock(remain):hoursToClock(w.ot)}</b><span>法定休日</span><b>${hoursToClock(w.stat)}</b></div></article>`
   }).join('');
-  document.querySelectorAll('[data-overview-date]').forEach(tr=>tr.addEventListener('click',()=>openDayEdit(tr.dataset.overviewDate)))
+  document.querySelectorAll('[data-overview-date]').forEach(tr=>tr.addEventListener('click',e=>{if(e.target.closest('button,input,select,textarea,a'))return;openOverviewInlineEdit(tr.dataset.overviewDate,tr)}))
+}
+let overviewInlineDate='';
+function closeOverviewInlineEdit(){
+  const ed=document.querySelector('.overview-inline-editor');if(ed)ed.remove();
+  document.querySelectorAll('[data-overview-date].is-editing').forEach(x=>x.classList.remove('is-editing'));
+  overviewInlineDate=''
+}
+function overviewInlinePreview(k,box){
+  const r={type:box.querySelector('[data-ov-field="type"]').value,start:box.querySelector('[data-ov-field="start"]').value,end:box.querySelector('[data-ov-field="end"]').value,out:box.querySelector('[data-ov-field="out"]').value,back:box.querySelector('[data-ov-field="back"]').value,note:box.querySelector('[data-ov-field="note"]').value};
+  const old=state.records[k];state.records[k]=r;
+  const c=calcRecord(k,r),o=weeklyOvertimeMap()[k]?.overtime||0;
+  if(old)state.records[k]=old;else delete state.records[k];
+  const target=box.querySelector('[data-ov-preview]');if(target)target.innerHTML=`<span>就労 <b>${hoursToClock(c.work)}</b></span><span>時間外 <b>${hoursToClock(o)}</b></span><span>法定休日 <b>${hoursToClock(c.statutoryHolidayWork)}</b></span><span>深夜 <b>${hoursToClock(c.night)}</b></span>`
+}
+function openOverviewInlineEdit(k,tr){
+  if(overviewInlineDate===k){closeOverviewInlineEdit();return}
+  closeOverviewInlineEdit();overviewInlineDate=k;tr.classList.add('is-editing');
+  const r=state.records[k]||{},h=holidayFor(k),d=parseIso(k),editor=document.createElement('tr');
+  editor.className='overview-inline-editor';editor.dataset.editorDate=k;
+  const td=document.createElement('td');td.colSpan=9;
+  td.innerHTML=`<div class="overview-inline-head"><b>${d.getMonth()+1}/${d.getDate()}（${['日','月','火','水','木','金','土'][d.getDay()]}）</b><span>${h.type}${h.name?'・'+escapeAttr(h.name):''}</span></div>
+  <div class="overview-inline-grid">
+    <label>勤務区分<select data-ov-field="type"><option value="">未入力</option>${['出勤','休日出勤','公休','有休','代休','特休'].map(x=>`<option ${r.type===x?'selected':''}>${x}</option>`).join('')}</select></label>
+    <label>出勤<input data-ov-field="start" type="time" value="${escapeAttr(r.start||'')}"></label>
+    <label>退勤<input data-ov-field="end" type="time" value="${escapeAttr(r.end||'')}"></label>
+    <label>外出<input data-ov-field="out" type="time" value="${escapeAttr(r.out||'')}"></label>
+    <label>戻り<input data-ov-field="back" type="time" value="${escapeAttr(r.back||'')}"></label>
+    <label class="wide">備考<textarea data-ov-field="note" rows="2">${escapeAttr(r.note||'')}</textarea></label>
+  </div>
+  <div class="overview-inline-preview" data-ov-preview></div>
+  <div class="overview-inline-actions"><button type="button" class="primary" data-ov-save>保存</button><button type="button" data-ov-cancel>キャンセル</button><button type="button" class="danger-button" data-ov-delete>入力削除</button></div>`;
+  editor.appendChild(td);tr.insertAdjacentElement('afterend',editor);
+  editor.querySelectorAll('input,select,textarea').forEach(el=>el.addEventListener('input',()=>overviewInlinePreview(k,editor)));
+  editor.querySelector('[data-ov-cancel]').onclick=closeOverviewInlineEdit;
+  editor.querySelector('[data-ov-save]').onclick=()=>{
+    const rec={type:editor.querySelector('[data-ov-field="type"]').value,start:editor.querySelector('[data-ov-field="start"]').value,end:editor.querySelector('[data-ov-field="end"]').value,out:editor.querySelector('[data-ov-field="out"]').value,back:editor.querySelector('[data-ov-field="back"]').value,note:editor.querySelector('[data-ov-field="note"]').value};
+    if(saveRecord(k,rec)){overviewInlineDate='';renderAll();if(k===iso())loadTodayForm();requestAnimationFrame(()=>{const row=document.querySelector(`[data-overview-date="${k}"]`);if(row){row.classList.add('overview-save-flash');setTimeout(()=>row.classList.remove('overview-save-flash'),800)}})}
+  };
+  editor.querySelector('[data-ov-delete]').onclick=()=>{if(!confirm(`${k} の勤怠入力を削除しますか？`))return;delete state.records[k];if(persist()){overviewInlineDate='';renderAll();if(k===iso())loadTodayForm()}};
+  overviewInlinePreview(k,editor);
+  const first=editor.querySelector('select,input');if(first)first.focus({preventScroll:true})
 }
 function openDayEdit(k){
   editDate=k;const r=state.records[k]||{},h=holidayFor(k),d=parseIso(k),ot=weeklyOvertimeMap()[k]?.overtime||0,c=calcRecord(k,r);

@@ -7,8 +7,8 @@
   <meta name="description" content="締め日連動・過去編集・Excel取込対応の勤怠管理PWA">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=8.0.0">
-  <title>勤怠管理 v8.0</title>
+  <link rel="stylesheet" href="styles.css?v=8.1.0">
+  <title>勤怠管理 v8.1</title>
 </head>
 <body>
   <section id="lockScreen" class="lock-screen">
@@ -24,7 +24,7 @@
   </section>
 
   <header class="app-header">
-    <div><h1>勤怠管理 <small class="version-badge">v8.0</small></h1><p id="todayLabel"></p></div>
+    <div><h1>勤怠管理 <small class="version-badge">v8.1</small></h1><p id="todayLabel"></p></div>
     <div class="header-actions">
       <span id="cloudHeaderStatus" class="cloud-header-status offline">ローカル</span>
       <button id="installBtn" class="ghost" hidden>追加</button>
@@ -78,7 +78,7 @@
             </tr></tfoot>
           </table>
         </div>
-        <p class="overview-help">日付行をタップすると、その日の勤怠を編集できます。</p>
+        <p class="overview-help">日付行をタップすると、その行の直下で勤怠を直接編集できます。</p>
       </article>
     </section>
 
@@ -260,8 +260,8 @@
   </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="firebase-config.js?v=8.0.0"></script>
-  <script type="module" src="cloud-sync.js?v=8.0.0"></script>
-  <script src="app.js?v=8.0.0"></script>
+  <script src="firebase-config.js?v=8.1.0"></script>
+  <script type="module" src="cloud-sync.js?v=8.1.0"></script>
+  <script src="app.js?v=8.1.0"></script>
 </body>
 </html>
