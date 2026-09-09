@@ -1,0 +1,30 @@
+TIME / 社内業務ポータル 配置確認
+
+GitHub time リポジトリの直下は必ずこの状態にしてください。
+
+time/
+├─ index.html              ← 勤怠管理 v8.2.2
+├─ app.js                  ← 勤怠TIME
+├─ styles.css              ← 勤怠TIME
+├─ cloud-sync.js
+├─ firebase-config.js
+├─ shared-store.js
+├─ time-v82-bridge.js
+├─ portal/
+│  ├─ index.html           ← 社内業務ポータル
+│  ├─ app.js
+│  ├─ style.css
+│  └─ portal-v81-adapter.js
+└─ tools/
+   └─ integration-inspector.html
+
+公開URL
+勤怠TIME:
+https://hokuyoumachineysanno-bit.github.io/time/
+
+社内業務ポータル:
+https://hokuyoumachineysanno-bit.github.io/time/portal/
+
+重要:
+portal/index.html を time リポジトリ直下へ移動しないでください。
+GitHubへは、ZIP展開後のフォルダ構造をそのまま保ってアップロードしてください。
