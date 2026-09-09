@@ -38,7 +38,8 @@
           employeeId:emp.id,date,
           type:r?.type||"出勤",in:r?.start||"",out:r?.end||"",
           outside:r?.out||"",back:r?.back||"",note:r?.note||"",
-          updatedAt:r?.updatedAt||null
+          updatedAt:r?.updatedAt||null,
+          source:"TIME"
         });
       }
 

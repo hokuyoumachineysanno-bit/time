@@ -22,12 +22,16 @@
         employeeId:x.employeeId,
         date:x.date,
         type:x.type,
-        work:0,
-        overtime:0,
-        paidLeave:x.type==="有休"?1:(x.type==="午前半休"||x.type==="午後半休"?0.5:0),
         start:x.in||"",
         end:x.out||"",
-        note:x.note||""
+        outside:x.outside||"",
+        back:x.back||"",
+        note:x.note||"",
+        work:Number.isFinite(+x.work)?+x.work:null,
+        overtime:Number.isFinite(+x.overtime)?+x.overtime:null,
+        paidLeave:x.type==="有休"?1:(x.type==="午前半休"||x.type==="午後半休"?0.5:0),
+        source:"TIME",
+        syncedAt:new Date().toISOString()
       }));
     }
     return portalDb;
