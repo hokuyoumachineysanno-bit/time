@@ -6,7 +6,14 @@ AUTH_KEY=KEY+'.authHash',SESSION_KEY=KEY+'.sessionUntil',SESSION_DAYS=30;
 const EMPLOYEES=[
 {id:'EMP-001',name:'社長'},{id:'EMP-002',name:'専務'},{id:'EMP-003',name:'山田'},{id:'EMP-004',name:'佐藤'},{id:'EMP-005',name:'鈴木'}
 ];
-let activeEmployeeId=localStorage.getItem(ACTIVE_EMP_KEY)||'EMP-004';
+const PORTAL_QUERY=new URLSearchParams(location.search);
+const requestedEmployee=PORTAL_QUERY.get('emp');
+const requestedDate=PORTAL_QUERY.get('date');
+const requestedEdit=PORTAL_QUERY.get('edit')==='1';
+let activeEmployeeId=(requestedEmployee&&EMPLOYEES.some(e=>e.id===requestedEmployee))
+  ? requestedEmployee
+  : (localStorage.getItem(ACTIVE_EMP_KEY)||'EMP-004');
+if(requestedEmployee)localStorage.setItem(ACTIVE_EMP_KEY,activeEmployeeId);
 const defaults={version:8.1,settings:{fiscalYear:new Date().getFullYear(),fiscalStartMonth:4,fiscalStartDay:21,cutoffDay:20,annualHolidayTarget:110,standardHours:8,baseBreak:1,extraBreak:.25,extraBreakAfter:'18:00',roundMinutes:15,roundStart:'切上',roundEnd:'切捨',earlyStart:'05:00',normalStart:'08:30',normalEnd:'17:30',nightStart:'22:00',monthOtLimit:45,yearOtLimit:360},records:{},calendar:{},holidayHistory:[]};
 let state=load(),dialogDate='',editDate='',deferredPrompt=null,applyingCloudState=false;
 const $=id=>document.getElementById(id),pad=n=>String(n).padStart(2,'0');
@@ -275,7 +282,12 @@ function openDayEdit(k){
   $('dayEditHoliday').textContent=`${h.type}${h.name?'・'+h.name:''}`;
   $('dayEditType').value=r.type||'';$('dayEditStart').value=r.start||'';$('dayEditEnd').value=r.end||'';$('dayEditOut').value=r.out||'';$('dayEditBack').value=r.back||'';$('dayEditNote').value=r.note||'';
   $('dayEditCalc').innerHTML=`<div><span>就労</span><strong>${hoursToClock(c.work)}</strong></div><div><span>時間外</span><strong>${hoursToClock(ot)}</strong></div><div><span>法定休日</span><strong>${hoursToClock(c.statutoryHolidayWork)}</strong></div><div><span>代休</span><strong>${c.compEarn?'+1日':'―'}</strong></div>`;
-  $('dayEditDialog').showModal()
+  const dialog=$('dayEditDialog');
+  if(!dialog)throw new Error('dayEditDialog not found');
+  if(dialog.open)return true;
+  if(typeof dialog.showModal==='function')dialog.showModal();
+  else dialog.setAttribute('open','');
+  return true
 }
 function saveOverviewDay(){
   const record={type:$('dayEditType').value,start:$('dayEditStart').value,end:$('dayEditEnd').value,out:$('dayEditOut').value,back:$('dayEditBack').value,note:$('dayEditNote').value};
@@ -491,7 +503,27 @@ function saveSettings(){Object.keys(state.settings).forEach(k=>{const e=$(k);if(
 async function sha256(t){const h=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(t));return[...new Uint8Array(h)].map(b=>b.toString(16).padStart(2,'0')).join('')}
 function sessionValid(){return +localStorage.getItem(SESSION_KEY)>Date.now()}
 function showLock(){const has=!!localStorage.getItem(AUTH_KEY);$('lockScreen').hidden=false;$('confirmPasswordWrap').hidden=has;$('lockDescription').textContent=has?'パスワードを入力してください。':'初回パスワードを設定してください。';$('loginButton').textContent=has?'ログイン':'パスワードを設定';$('loginPassword').value='';$('confirmPassword').value='';$('loginMessage').textContent=''}
-async function login(){const p=$('loginPassword').value,saved=localStorage.getItem(AUTH_KEY);if(p.length<4){$('loginMessage').textContent='4文字以上で入力してください。';return}if(!saved){if(p!==$('confirmPassword').value){$('loginMessage').textContent='確認用が一致しません。';return}localStorage.setItem(AUTH_KEY,await sha256(p))}else if(await sha256(p)!==saved){$('loginMessage').textContent='パスワードが違います。';return}localStorage.setItem(SESSION_KEY,String(Date.now()+SESSION_DAYS*86400000));$('lockScreen').hidden=true;renderAll();loadTodayForm()}
+async function login(){
+ try{
+  const p=$('loginPassword')?.value||'',saved=localStorage.getItem(AUTH_KEY);
+  if(p.length<4){$('loginMessage').textContent='4文字以上で入力してください。';return}
+  if(!saved){
+    if(p!==($('confirmPassword')?.value||'')){$('loginMessage').textContent='確認用が一致しません。';return}
+    localStorage.setItem(AUTH_KEY,await sha256(p));
+  }else if(await sha256(p)!==saved){
+    $('loginMessage').textContent='パスワードが違います。';return
+  }
+  localStorage.setItem(SESSION_KEY,String(Date.now()+SESSION_DAYS*86400000));
+  $('lockScreen').hidden=true;
+  renderAll();
+  loadTodayForm();
+  setTimeout(applyPortalDeepLink,0);
+ }catch(err){
+  console.error('login error',err);
+  const msg=$('loginMessage');
+  if(msg)msg.textContent='ログイン処理でエラーが発生しました。画面を再読込してください。';
+ }
+}
 function logout(){localStorage.removeItem(SESSION_KEY);showLock()}
 function download(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click();URL.revokeObjectURL(a.href)}
 function exportCsv(){const rows=[['日付','月度','期間','勤務区分','出勤','退勤','外出','戻り','備考']];Object.entries(state.records).sort().forEach(([k,r])=>{const p=periodForDate(parseIso(k));rows.push([k,p?.label||'',p?.range||'',r.type||'',r.start||'',r.end||'',r.out||'',r.back||'',r.note||''])});download('attendance.csv','\ufeff'+rows.map(r=>r.map(v=>`"${String(v).replaceAll('"','""')}"`).join(',')).join('\n'),'text/csv')}
@@ -700,6 +732,98 @@ function switchEmployee(employeeId){
   window.dispatchEvent(new Event('attendance-cloud-reconnect'));
 }
 
+
+let deepLinkApplied=false;
+function overviewIndexForDate(date){
+  try{
+    const d=parseIso(date),periods=fiscalPeriods();
+    const idx=periods.findIndex(p=>d>=p.start&&d<=p.end);
+    return idx>=0?idx:0;
+  }catch{return 0}
+}
+function overviewIndexForDate(dateStr){
+  try{
+    const d=parseIso(dateStr),periods=buildPeriods();
+    const idx=periods.findIndex(p=>d>=p.start&&d<=p.end);
+    return idx>=0?idx:0;
+  }catch{return 0}
+}
+
+function forceOpenPortalEditor(attempt=0){
+  if(!requestedDate||!requestedEdit)return;
+  try{
+    // 月間タブへ移動
+    const tab=document.querySelector('.tab[data-view="overview"]');
+    if(tab&&!tab.classList.contains('active'))tab.click();
+
+    // 対象日を含む締め期間へ移動
+    const period=$('overviewPeriod');
+    if(period){
+      period.value=String(overviewIndexForDate(requestedDate));
+      renderOverview();
+    }
+
+    // TIMEが本来持っている月間表インライン編集を直接開く
+    const row=document.querySelector(`[data-overview-date="${requestedDate}"]`);
+    if(!row)throw new Error('対象日の月間行がまだ描画されていません');
+
+    openOverviewInlineEdit(requestedDate,row);
+
+    const editor=document.querySelector(`[data-editor-date="${requestedDate}"]`);
+    if(!editor)throw new Error('インライン編集欄を開けませんでした');
+
+    editor.scrollIntoView({behavior:'smooth',block:'center'});
+    const first=editor.querySelector('select,input,textarea');
+    if(first)setTimeout(()=>first.focus({preventScroll:true}),150);
+
+    deepLinkApplied=true;
+    console.info('portal inline edit opened',activeEmployeeId,requestedDate);
+  }catch(e){
+    console.warn('portal inline edit retry',attempt,e);
+    if(attempt<20){
+      setTimeout(()=>forceOpenPortalEditor(attempt+1),150);
+    }else{
+      alert(`${activeEmployeeId} ${requestedDate} の編集欄を自動で開けませんでした。月間表の対象日をクリックしてください。`);
+    }
+  }
+}
+
+function applyPortalDeepLink(){
+  if(deepLinkApplied||!requestedDate)return;
+  try{
+    const tab=document.querySelector('.tab[data-view="overview"]');
+    if(tab&&!tab.classList.contains('active'))tab.click();
+
+    const period=$('overviewPeriod');
+    if(period){
+      period.value=String(overviewIndexForDate(requestedDate));
+      renderOverview();
+    }
+
+    if(requestedEdit)setTimeout(()=>forceOpenPortalEditor(0),80);
+    else deepLinkApplied=true;
+  }catch(e){
+    console.error('portal deep link failed',e);
+    if(requestedEdit)setTimeout(()=>forceOpenPortalEditor(0),150);
+  }
+}
+
+function bindLoginControls(){
+  const loginButton=$('loginButton');
+  const loginPassword=$('loginPassword');
+  const confirmPassword=$('confirmPassword');
+  const logoutButton=$('logoutButton');
+
+  if(loginButton)loginButton.onclick=()=>login().catch(err=>{
+    console.error('login failed',err);
+    const msg=$('loginMessage');if(msg)msg.textContent='ログイン処理でエラーが発生しました。再読込してください。';
+  });
+  if(logoutButton)logoutButton.onclick=logout;
+  if(loginPassword)loginPassword.onkeydown=e=>{if(e.key==='Enter')loginButton?.click()};
+  if(confirmPassword)confirmPassword.onkeydown=e=>{if(e.key==='Enter')loginButton?.click()};
+}
+bindLoginControls();
+
 function setup(){const employeeSwitcher=$('employeeSwitcher');if(employeeSwitcher){employeeSwitcher.value=activeEmployeeId;employeeSwitcher.onchange=()=>switchEmployee(employeeSwitcher.value)}
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab,.view').forEach(x=>x.classList.remove('active'));b.classList.add('active');$('view-'+b.dataset.view).classList.add('active');if(b.dataset.view==='ledger')renderLedger();if(b.dataset.view==='overview')renderOverview()});document.querySelectorAll('.now').forEach(b=>b.onclick=e=>{e.preventDefault();$(b.dataset.target).value=hm();previewToday()});['workType','start','end','out','back'].forEach(id=>$(id).addEventListener('input',previewToday));['fiscalYear','fiscalStartMonth','fiscalStartDay','cutoffDay'].forEach(id=>$(id).addEventListener('input',renderPeriodPreview));$('saveToday').onclick=saveToday;$('saveAllLedger').onclick=()=>{let ok=0;document.querySelectorAll('[data-ledger-entry].dirty').forEach(entry=>{if(saveLedgerRow(entry))ok++});$('ledgerSaveMessage').textContent=ok?`${ok}件を保存しました。`:'変更された行はありません。'};$('reloadLedger').onclick=renderLedger;$('calendarMonth').onchange=renderCalendar;
 $('overviewPeriod').onchange=renderOverview;$('prevOverviewPeriod').onclick=()=>{const i=Math.max(0,(+$('overviewPeriod').value||0)-1);$('overviewPeriod').value=String(i);renderOverview()};$('nextOverviewPeriod').onclick=()=>{const i=Math.min(11,(+$('overviewPeriod').value||0)+1);$('overviewPeriod').value=String(i);renderOverview()};$('saveDayEdit').onclick=e=>{e.preventDefault();saveOverviewDay()};$('deleteDayEdit').onclick=deleteOverviewDay;['dayEditType','dayEditStart','dayEditEnd','dayEditOut','dayEditBack'].forEach(id=>$(id).addEventListener('input',()=>{const r={type:$('dayEditType').value,start:$('dayEditStart').value,end:$('dayEditEnd').value,out:$('dayEditOut').value,back:$('dayEditBack').value,note:$('dayEditNote').value},old=state.records[editDate];state.records[editDate]=r;const c=calcRecord(editDate,r),o=weeklyOvertimeMap()[editDate]?.overtime||0;if(old)state.records[editDate]=old;else delete state.records[editDate];$('dayEditCalc').innerHTML=`<div><span>就労</span><strong>${hoursToClock(c.work)}</strong></div><div><span>時間外</span><strong>${hoursToClock(o)}</strong></div><div><span>法定休日</span><strong>${hoursToClock(c.statutoryHolidayWork)}</strong></div><div><span>代休</span><strong>${c.compEarn?'+1日':'―'}</strong></div>`}));$('ledgerPeriod').onchange=renderLedger;
@@ -710,10 +834,19 @@ $('cloudGoogleSignIn').onclick=()=>window.dispatchEvent(new Event('attendance-cl
 $('cloudSignOut').onclick=()=>window.dispatchEvent(new Event('attendance-cloud-signout'));
 $('cloudPush').onclick=()=>window.dispatchEvent(new CustomEvent('attendance-cloud-push',{detail:structuredClone(state)}));
 $('cloudPull').onclick=()=>window.dispatchEvent(new Event('attendance-cloud-pull'));
-$('cloudDiagnose').onclick=()=>window.dispatchEvent(new Event('attendance-cloud-diagnose'));$('loginButton').onclick=login;$('logoutButton').onclick=logout;$('loginPassword').onkeydown=e=>{if(e.key==='Enter')login()};$('confirmPassword').onkeydown=e=>{if(e.key==='Enter')login()};$('exportJson').onclick=()=>download('attendance-backup.json',JSON.stringify(state,null,2),'application/json');$('importJson').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{const x=JSON.parse(r.result);state={version:8,settings:{...defaults.settings,...(x.settings||{})},records:x.records||{},calendar:x.calendar||{},holidayHistory:Array.isArray(x.holidayHistory)?x.holidayHistory:[]};persist();renderAll();loadTodayForm();alert('復元しました')};r.readAsText(f)};$('exportCsv').onclick=exportCsv;$('importExcel').onchange=e=>{const f=e.target.files[0];if(f)importWorkbook(f)};$('resetData').onclick=()=>{if(confirm('全データを削除しますか？')){state=structuredClone(defaults);persist();renderAll();loadTodayForm()}};window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;$('installBtn').hidden=false});$('installBtn').onclick=async()=>{if(deferredPrompt){deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;$('installBtn').hidden=true}};let lastMobile=isMobileLedger();
+$('cloudDiagnose').onclick=()=>window.dispatchEvent(new Event('attendance-cloud-diagnose'));$('exportJson').onclick=()=>download('attendance-backup.json',JSON.stringify(state,null,2),'application/json');$('importJson').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{const x=JSON.parse(r.result);state={version:8,settings:{...defaults.settings,...(x.settings||{})},records:x.records||{},calendar:x.calendar||{},holidayHistory:Array.isArray(x.holidayHistory)?x.holidayHistory:[]};persist();renderAll();loadTodayForm();alert('復元しました')};r.readAsText(f)};$('exportCsv').onclick=exportCsv;$('importExcel').onchange=e=>{const f=e.target.files[0];if(f)importWorkbook(f)};$('resetData').onclick=()=>{if(confirm('全データを削除しますか？')){state=structuredClone(defaults);persist();renderAll();loadTodayForm()}};window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;$('installBtn').hidden=false});$('installBtn').onclick=async()=>{if(deferredPrompt){deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;$('installBtn').hidden=true}};let lastMobile=isMobileLedger();
 window.addEventListener('resize',()=>{const now=isMobileLedger();if(now!==lastMobile){lastMobile=now;const ledgerView=$('view-ledger');if(ledgerView&&ledgerView.classList.contains('active'))renderLedger()}});
-if(sessionValid()){$('lockScreen').hidden=true;renderAll();loadTodayForm()}else showLock();requestCloudStatus()}
-setup();
+if(sessionValid()){$('lockScreen').hidden=true;renderAll();loadTodayForm();setTimeout(applyPortalDeepLink,0)}else showLock();requestCloudStatus()}
+try{
+  setup();
+}catch(err){
+  console.error('TIME setup error',err);
+  bindLoginControls();
+  const msg=$('loginMessage');
+  if(msg && !$('lockScreen')?.hidden)msg.textContent='一部初期化に失敗しましたが、ログインは可能です。';
+}
 
+window.addEventListener('attendance-cloud-state',()=>{if(requestedEdit)setTimeout(()=>forceOpenPortalEditor(0),100)});
+window.addEventListener('attendance-employee-change',()=>{if(requestedEdit)setTimeout(()=>forceOpenPortalEditor(0),100)});
 window.HokuyouAttendanceEmployee=()=>activeEmployeeId;
 window.HokuyouAttendanceEmployeeStore=()=>employeeStore();

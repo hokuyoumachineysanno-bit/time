@@ -7,8 +7,8 @@
   <meta name="description" content="締め日連動・過去編集・Excel取込対応の勤怠管理PWA">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=8.1.0">
-  <title>勤怠管理 v8.2.3</title>
+  <link rel="stylesheet" href="styles.css?v=8.2.7-inline">
+  <title>勤怠管理 v8.2.7</title>
 </head>
 <body>
   <section id="lockScreen" class="lock-screen">
@@ -24,7 +24,7 @@
   </section>
 
   <header class="app-header">
-    <div><h1>勤怠管理 <small class="version-badge">v8.2.3</small></h1><p id="todayLabel"></p></div>
+    <div><h1>勤怠管理 <small class="version-badge">v8.2.7</small></h1><p id="todayLabel"></p></div>
     <div class="header-actions">
       <label class="employee-switcher">勤怠対象
         <select id="employeeSwitcher" aria-label="勤怠対象社員">
@@ -49,7 +49,7 @@
       <button class="tab" data-view="calendar">休日</button>
       <button class="tab" data-view="ledger">編集</button>
       <button class="tab" data-view="settings">設定</button>
-      <a href="/time/portal/" class="tab portal-link" style="text-decoration:none;text-align:center">予定・案件</a>
+      <a href="/time/portal/?view=attendance" class="tab portal-link" style="text-decoration:none;text-align:center">予定・案件</a>
     </nav>
 
     <section id="view-overview" class="view active">
@@ -271,9 +271,9 @@
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="firebase-config.js?v=8.1.0"></script>
-  <script type="module" src="cloud-sync.js?v=8.1.0"></script>
+  <script type="module" src="cloud-sync.js?v=8.2.7-inline"></script>
   <script src="shared-store.js?v=1"></script>
-  <script src="time-v82-bridge.js?v=1"></script>
-  <script src="app.js?v=8.1.0"></script>
+  <script src="time-v82-bridge.js?v=8.2.7-inline"></script>
+  <script src="app.js?v=8.2.7-inline"></script>
 </body>
 </html>
