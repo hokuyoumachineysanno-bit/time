@@ -1,719 +1,214 @@
+const $=id=>document.getElementById(id);
+const KEY='companyPortalV06';
+const seed={employees:[{id:'EMP-001',name:'社長',role:'社長',active:true,attendance:true,start:'08:00',end:'17:00',order:1},{id:'EMP-002',name:'専務',role:'専務',active:true,attendance:true,start:'08:00',end:'17:00',order:2},{id:'EMP-003',name:'山田',role:'社員',active:true,attendance:true,start:'08:00',end:'17:00',order:3},{id:'EMP-004',name:'佐藤',role:'社員',active:true,attendance:true,start:'08:00',end:'17:00',order:4},{id:'EMP-005',name:'鈴木',role:'社員',active:true,attendance:true,start:'08:00',end:'17:00',order:5}],vehicles:[{id:'CAR-001',name:'ハイエース①',type:'ハイエース',number:'富山100 あ 1234',active:true,note:''},{id:'CAR-002',name:'ハイエース②',type:'ハイエース',number:'富山100 あ 5678',active:true,note:''},{id:'CAR-003',name:'プロボックス',type:'プロボックス',number:'富山500 い 1111',active:true,note:''}],customers:[{id:'CUS-001',name:'○○食品株式会社',short:'○○食品',address:'富山県',contact:'田中様',phone:'',active:true},{id:'CUS-002',name:'△△食品株式会社',short:'△△食品',address:'石川県',contact:'佐々木様',phone:'',active:true}],projects:[{id:'PJ-2026-0042',customerId:'CUS-001',name:'コンベア改造',status:'受注',start:'2026-09-09',deadline:'2026-11-20',hours:120,people:2,ownerId:'EMP-003',note:'現調→設計→製作→現地工事'},{id:'PJ-2026-0048',customerId:'CUS-002',name:'洗浄機更新',status:'見積中',start:'2026-09-15',deadline:'2026-12-10',hours:240,people:3,ownerId:'EMP-002',note:'メーカー実機検証あり'}],tasks:[{id:'A',date:'2026-09-09',name:'現調',type:'現調',projectId:'PJ-2026-0042',employeeId:'EMP-001',vehicleId:'',start:'08:00',end:'10:00',status:'confirmed'},{id:'B',date:'2026-09-09',name:'社内打合せ',type:'その他',projectId:'',employeeId:'EMP-001',vehicleId:'',start:'11:00',end:'12:00',status:'pending'},{id:'C',date:'2026-09-09',name:'商談',type:'商談',projectId:'PJ-2026-0048',employeeId:'EMP-001',vehicleId:'',start:'13:00',end:'15:00',status:'confirmed'},{id:'D',date:'2026-09-09',name:'客先修理',type:'客先修理',projectId:'',employeeId:'EMP-002',vehicleId:'CAR-001',start:'08:30',end:'12:00',status:'confirmed'},{id:'E',date:'2026-09-09',name:'見積作成',type:'見積',projectId:'PJ-2026-0048',employeeId:'EMP-002',vehicleId:'',start:'13:00',end:'16:00',status:'provisional'},{id:'F',date:'2026-09-09',name:'架台組立',type:'社内製作',projectId:'PJ-2026-0042',employeeId:'EMP-003',vehicleId:'',start:'09:00',end:'12:00',status:'confirmed'}],holidays:[{id:'H1',date:'2026-09-13',type:'statutory',name:'法定休日'},{id:'H2',date:'2026-09-19',type:'company',name:'所定休日'},{id:'H3',date:'2026-09-20',type:'statutory',name:'法定休日'}],attendance:[{employeeId:'EMP-001',date:'2026-09-09',type:'出勤',work:8.5,overtime:.5,paidLeave:0},{employeeId:'EMP-002',date:'2026-09-09',type:'出勤',work:9,overtime:1,paidLeave:0},{employeeId:'EMP-003',date:'2026-09-09',type:'出勤',work:8,overtime:0,paidLeave:0},{employeeId:'EMP-004',date:'2026-09-09',type:'有休',work:0,overtime:0,paidLeave:1},{employeeId:'EMP-005',date:'2026-09-09',type:'出勤',work:8,overtime:0,paidLeave:0}],attendanceSummary:[{employeeId:'EMP-001',annualHolidays:110,holidaysTaken:71,paidLeaveTaken:3,annualWork:1450,overtime:185,agreementPct:51},{employeeId:'EMP-002',annualHolidays:110,holidaysTaken:69,paidLeaveTaken:2,annualWork:1510,overtime:218,agreementPct:61},{employeeId:'EMP-003',annualHolidays:110,holidaysTaken:75,paidLeaveTaken:4,annualWork:1420,overtime:146,agreementPct:41},{employeeId:'EMP-004',annualHolidays:110,holidaysTaken:78,paidLeaveTaken:5,annualWork:1390,overtime:98,agreementPct:27},{employeeId:'EMP-005',annualHolidays:110,holidaysTaken:80,paidLeaveTaken:3,annualWork:1370,overtime:86,agreementPct:24}]};
+let db=JSON.parse(localStorage.getItem(KEY)||'null')||JSON.parse(JSON.stringify(seed));
+if(window.HokuyouPortalV81Adapter){db=HokuyouPortalV81Adapter.merge(db);}db.tasks.forEach(t=>{if(!Array.isArray(t.passengerIds))t.passengerIds=[];if(!t.category)t.category=(['設計','見積','社内製作','段取り','整備'].includes(t.type)?'社内案件':'客先案件');if(typeof t.urgent!=='boolean')t.urgent=false;if(!Array.isArray(t.history))t.history=[];});db.projects.forEach(p=>{const m={'引合':'情報','見積中':'商談中','進行中':'施工中','保留':'商談中','完了':'検収済'};p.status=m[p.status]||p.status;if(!Array.isArray(p.history))p.history=[];});let currentDay='2026-09-09',currentMonth='2026-09',masterType='employees',dayRange='all';
+const save=()=>{localStorage.setItem(KEY,JSON.stringify(db));if(window.HokuyouPortalV81Adapter)HokuyouPortalV81Adapter.pushBusinessData(db)};
+const emp=id=>db.employees.find(x=>x.id===id),veh=id=>db.vehicles.find(x=>x.id===id),cust=id=>db.customers.find(x=>x.id===id),proj=id=>db.projects.find(x=>x.id===id);
+const empName=id=>emp(id)?.name||'未割当',vehName=id=>veh(id)?.name||'-',custName=id=>cust(id)?.name||'',activeEmployees=()=>db.employees.filter(x=>x.active).sort((a,b)=>a.order-b.order);
+const projectLabel=id=>{const p=proj(id);return p?`${p.id} ${cust(p.customerId)?.short||custName(p.customerId)} ${p.name}`:'社内'};
+const statusText=s=>({confirmed:'確定',pending:'確認待ち',provisional:'仮予定',unassigned:'未割当'})[s],statusBadge=s=>s==='confirmed'?'bc':s==='pending'?'bp':s==='provisional'?'bv':'bu';
+const taskClass=t=>t.status!=='confirmed'?t.status:(t.category==='社内案件'?'internal':'confirmed');
+const timeNum=t=>{const[a,b]=t.split(':').map(Number);return a+b/60};
+const taskHours=t=>Math.max(0,timeNum(t.end)-timeNum(t.start));
+const participants=t=>t.type==='移動'?[t.employeeId,...(t.passengerIds||[])].filter((x,i,a)=>x&&a.indexOf(x)===i):[t.employeeId];
+const travelStats=items=>{const travel=items.filter(t=>t.type==='移動'),work=items.filter(t=>t.type!=='移動');const travelPerson=travel.reduce((s,t)=>s+taskHours(t)*participants(t).length,0),vehicleHours=travel.reduce((s,t)=>s+taskHours(t),0),workHours=work.reduce((s,t)=>s+taskHours(t),0),total=travelPerson+workHours;return{travelPerson,vehicleHours,workHours,total,ratio:total?travelPerson/total*100:0}};
+const fmtH=n=>`${Math.round(n*10)/10}h`;
+const parseYMD=date=>{const[y,m,d]=date.split('-').map(Number);return{y,m,d}};
+const ymd=(y,m,d)=>`${String(y).padStart(4,'0')}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+const addDays=(date,n)=>{const p=parseYMD(date),dt=new Date(Date.UTC(p.y,p.m-1,p.d+n));return ymd(dt.getUTCFullYear(),dt.getUTCMonth()+1,dt.getUTCDate())};
+const dateLabel=date=>{const p=parseYMD(date),dt=new Date(Date.UTC(p.y,p.m-1,p.d)),w=['日','月','火','水','木','金','土'][dt.getUTCDay()];return`${p.y}年${p.m}月${p.d}日（${w}）`};
+const syncMonthToDay=()=>{currentMonth=currentDay.slice(0,7)};
+const holidayFor=date=>db.holidays.filter(h=>h.date===date);
+const attendanceFor=(employeeId,date)=>db.attendance.find(a=>a.employeeId===employeeId&&a.date===date);
+const nextTaskId=()=>{for(let c=65;c<=90;c++){let x=String.fromCharCode(c);if(!db.tasks.some(t=>t.id===x))return x}return'T'+(db.tasks.length+1)};
+const timeOptions=s=>{let o='';for(let h=0;h<24;h++)for(let m of [0,30]){const t=String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');o+=`<option ${t===s?'selected':''}>${t}</option>`}return o};
+const timeBands=(start,end)=>{const span=end-start,defs=[[0,5,'deep'],[5,8.5,'early'],[8.5,17.5,'normal'],[17.5,22,'night'],[22,24,'deep']];return defs.map(([a,b,c])=>{const x=Math.max(a,start),y=Math.min(b,end);if(y<=x)return'';return`<div class="timeband ${c}" style="left:${(x-start)/span*100}%;width:${(y-x)/span*100}%"></div>`}).join('')};
+function showView(name){document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x.dataset.view===name));document.querySelectorAll('.view').forEach(x=>x.classList.toggle('hidden',x.id!==name))}
+let modalSaveHandler=null;function openModal(title,html,onSave){$('modalTitle').textContent=title;$('modalBody').innerHTML=html;$('modal').classList.remove('hidden');modalSaveHandler=onSave;setTimeout(()=>$('modalBody').querySelector('input,select,textarea')?.focus(),40)}function closeModal(){$('modal').classList.add('hidden');modalSaveHandler=null}document.querySelectorAll('[data-modal-close]').forEach(x=>x.onclick=closeModal);$('modalCancel').onclick=closeModal;$('modalSave').onclick=()=>modalSaveHandler&&modalSaveHandler();
+function renderSummary(){const p=db.tasks.filter(t=>t.status==='pending').length,v=db.tasks.filter(t=>t.status==='provisional').length;$('summary').innerHTML=`<div class=card>進行案件<br><b>${db.projects.filter(p=>p.status!=='完了').length}</b></div><div class=card>社員<br><b>${db.employees.filter(x=>x.active).length}</b></div><div class=card>車両<br><b>${db.vehicles.filter(x=>x.active).length}</b></div><div class=card>顧客<br><b>${db.customers.filter(x=>x.active).length}</b></div><div class=card>確認待ち<br><b style="color:#ef4444">${p}</b></div><div class=card>仮予定<br><b style="color:#f59e0b">${v}</b></div>`}
+function renderDashboard(){const upcoming=db.projects.filter(p=>p.status!=='完了').sort((a,b)=>a.deadline.localeCompare(b.deadline)).slice(0,5);$('dashboard').innerHTML=`<div class=fieldtest-note><b>実機テスト版</b>：予定・勤怠・会社カレンダー・社員マスタは同じブラウザデータを参照しています。まず1週間、入力負担と見え方を確認してください。</div><div class=grid3><div class=panel><h3>予定の完成度</h3><b style="font-size:30px">${db.tasks.length?Math.round(db.tasks.filter(t=>t.status==='confirmed').length/db.tasks.length*100):100}%</b><p class=small>点滅している予定を前週までに消す。</p></div><div class=panel><h3>未確定</h3><p>確認待ち ${db.tasks.filter(t=>t.status==='pending').length}件 / 仮 ${db.tasks.filter(t=>t.status==='provisional').length}件</p></div><div class=panel><h3>共通マスタ</h3><p>社員 ${db.employees.length} / 車両 ${db.vehicles.length} / 顧客 ${db.customers.length}</p></div></div><div class=panel><h3>直近案件</h3><div class=tablewrap><table><tr><th>案件</th><th>顧客</th><th>納期</th><th>工数</th><th>主担当</th></tr>${upcoming.map(p=>`<tr><td>${p.id}<br><b>${p.name}</b></td><td>${custName(p.customerId)}</td><td>${p.deadline}</td><td>${p.hours}h</td><td>${empName(p.ownerId)}</td></tr>`).join('')}</table></div></div>`}
+function projectModal(p){const isEdit=!!p,p0=p||{id:'PJ-2026-'+String(49+db.projects.length).padStart(4,'0'),customerId:db.customers.find(x=>x.active)?.id||'',name:'',status:'受注',start:currentDay,deadline:addDays(currentDay,30),hours:80,people:2,ownerId:activeEmployees()[0]?.id||'',note:''};openModal(isEdit?'案件編集':'案件追加',`<div class=form><div><label>案件ID</label><input id=mpId value="${p0.id}"></div><div><label>状態</label><select id=mpStatus>${['情報','アプローチ','商談中','見積提出','受注','施工中','検収待ち','検収済','アフター','完了'].map(x=>`<option ${x===p0.status?'selected':''}>${x}</option>`).join('')}</select></div><div><label>顧客</label><select id=mpCustomer>${db.customers.filter(x=>x.active||x.id===p0.customerId).map(x=>`<option value="${x.id}" ${x.id===p0.customerId?'selected':''}>${x.name}</option>`).join('')}</select></div><div><label>案件名</label><input id=mpName value="${p0.name}"></div><div><label>開始日</label><input id=mpStart type=date value="${p0.start}"></div><div><label>納期</label><input id=mpDeadline type=date value="${p0.deadline}"></div><div><label>予定工数</label><input id=mpHours type=number value="${p0.hours}"></div><div><label>必要人員</label><input id=mpPeople type=number value="${p0.people}"></div><div><label>主担当</label><select id=mpOwner>${activeEmployees().map(e=>`<option value="${e.id}" ${e.id===p0.ownerId?'selected':''}>${e.name}</option>`).join('')}</select></div><div><label>備考</label><textarea id=mpNote>${p0.note||''}</textarea></div></div>`,()=>{const n={id:$('mpId').value.trim(),status:$('mpStatus').value,customerId:$('mpCustomer').value,name:$('mpName').value.trim(),start:$('mpStart').value,deadline:$('mpDeadline').value,hours:+$('mpHours').value||0,people:+$('mpPeople').value||1,ownerId:$('mpOwner').value,note:$('mpNote').value.trim()};if(!n.id||!n.name)return alert('案件IDと案件名は必須です');if(isEdit){const old=p.id,idx=db.projects.findIndex(x=>x.id===old);db.projects[idx]=n;db.tasks.forEach(t=>{if(t.projectId===old)t.projectId=n.id})}else{if(db.projects.some(x=>x.id===n.id))return alert('案件IDが重複しています');db.projects.push(n)}save();closeModal();renderAll();showView('projects')})}
+function renderProjects(){$('projects').innerHTML=`<div class=panel><div class=daynav><h3>案件台帳</h3><button id=addProject class=primary>＋案件追加</button></div>${db.projects.map(p=>`<div class=project-card><h4>${p.id}　${custName(p.customerId)}</h4><div><b>${p.name}</b> <span class="badge bblue">${p.status}</span></div><div class=small>${p.start} ～ ${p.deadline} / ${p.hours}h / ${p.people}名 / 主担当 ${empName(p.ownerId)}</div><div class=actions><button class=ghost data-pe="${p.id}">編集</button><button class=ghost data-po="${p.id}">この案件で予定</button><button class=danger data-pd="${p.id}">削除</button></div></div>`).join('')}</div>`;$('addProject').onclick=()=>projectModal(null);document.querySelectorAll('[data-pe]').forEach(b=>b.onclick=()=>projectModal(proj(b.dataset.pe)));document.querySelectorAll('[data-pd]').forEach(b=>b.onclick=()=>{if(confirm('案件を削除しますか？')){db.projects=db.projects.filter(x=>x.id!==b.dataset.pd);save();renderAll();showView('projects')}});document.querySelectorAll('[data-po]').forEach(b=>b.onclick=()=>{currentDay=proj(b.dataset.po)?.start||currentDay;showView('day');renderDay();setTimeout(()=>taskModal(null,b.dataset.po),80)})}
+function renderYear(){const ms=[7,8,9,10,11,12];$('year').innerHTML=`<div class=grid2><div class=panel><h3>年間案件</h3><div class=tablewrap><table><tr><th>案件</th>${ms.map(m=>`<th>${m}月</th>`).join('')}<th>納期</th></tr>${db.projects.map(p=>`<tr><td><b>${p.id}</b><br>${p.name}</td>${ms.map(m=>{const active=new Date(2026,m,0)>=new Date(p.start)&&new Date(`2026-${String(m).padStart(2,'0')}-01`)<=new Date(p.deadline);return`<td>${active?`<div class="pill confirmed">${p.status}<br>${p.hours}h/${p.people}名</div>`:''}${db.tasks.filter(t=>t.projectId===p.id&&+t.date.slice(5,7)===m).map(t=>`<div class="pill ${t.status}">${t.id} ${t.name}</div>`).join('')}</td>`}).join('')}<td>${p.deadline}</td></tr>`).join('')}</table></div></div><div class=panel><h3>年間労務</h3><div class=tablewrap><table><tr><th>社員</th><th>休日</th><th>有休</th><th>就労</th><th>時間外</th><th>36協定</th></tr>${db.attendanceSummary.map(x=>`<tr><td>${empName(x.employeeId)}</td><td>${x.holidaysTaken}/${x.annualHolidays}</td><td>${x.paidLeaveTaken}</td><td>${x.annualWork}h</td><td>${x.overtime}h</td><td>${x.agreementPct}%</td></tr>`).join('')}</table></div></div></div>`}
+function renderQuarter(){$('quarter').innerHTML=[['Q3 7-9月',[7,8,9]],['Q4 10-12月',[10,11,12]]].map(([n,ms])=>`<div class=panel><h3>${n}</h3><div class=tablewrap><table><tr><th>案件</th><th>期間</th><th>工数</th><th>人員</th><th>主担当</th><th>未確定</th></tr>${db.projects.filter(p=>ms.some(m=>new Date(2026,m,0)>=new Date(p.start)&&new Date(`2026-${String(m).padStart(2,'0')}-01`)<=new Date(p.deadline))).map(p=>`<tr><td>${p.id}<br><b>${p.name}</b></td><td>${p.start}<br>～${p.deadline}</td><td>${p.hours}h</td><td>${p.people}名</td><td>${empName(p.ownerId)}</td><td>${db.tasks.filter(t=>t.projectId===p.id&&t.status!=='confirmed').length}</td></tr>`).join('')}</table></div></div>`).join('')}
+function renderMonth(){const[y,m]=currentMonth.split('-').map(Number),last=new Date(y,m,0).getDate(),first=new Date(y,m-1,1).getDay();let cells='';for(let i=0;i<first;i++)cells+='<div></div>';for(let d=1;d<=last;d++){const date=`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`,hs=db.holidays.filter(h=>h.date===date),ts=db.tasks.filter(t=>t.date===date),leave=db.attendance.filter(a=>a.date===date&&a.type!=='出勤'),cls=hs.some(h=>h.type==='statutory')?'holiday-bg':hs.length?'company-bg':'';cells+=`<div class="daycell ${cls}" data-date="${date}"><div class=daynum>${d}</div>${hs.map(h=>`<div class="pill ${h.type==='statutory'?'holiday':'companyHoliday'}">${h.name}</div>`).join('')}${leave.map(a=>`<div class="pill companyHoliday">${empName(a.employeeId)} ${a.type}</div>`).join('')}${ts.map(t=>`<div class="pill ${t.status}">${t.id} ${t.name}<br>${empName(t.employeeId)}</div>`).join('')}</div>`}$('month').innerHTML=`<div class=panel><div class=daynav><button id=mPrev class=ghost>←前月</button><div class=datebox>${y}年${m}月</div><button id=mNext class=ghost>翌月→</button></div><div class=calendar-scroll><div class=calendar-head>${['日','月','火','水','木','金','土'].map(x=>`<div>${x}</div>`).join('')}</div><div class=calendar>${cells}</div></div></div>`;$('mPrev').onclick=()=>{let d=new Date(currentMonth+'-01');d.setMonth(d.getMonth()-1);currentMonth=d.toISOString().slice(0,7);renderMonth()};$('mNext').onclick=()=>{let d=new Date(currentMonth+'-01');d.setMonth(d.getMonth()+1);currentMonth=d.toISOString().slice(0,7);renderMonth()};document.querySelectorAll('[data-date]').forEach(c=>c.onclick=()=>{currentDay=c.dataset.date;showView('day');renderDay()})}
+function rangeDef(){return dayRange==='am'?{s:0,e:12,h:[0,1,2,3,4,5,6,7,8,9,10,11]}:dayRange==='pm'?{s:12,e:24,h:[12,13,14,15,16,17,18,19,20,21,22,23]}:{s:0,e:24,h:[0,2,4,6,8,10,12,14,16,18,20,22]}}
+function taskModal(t,presetProject=''){
+ const edit=!!t;
+ const t0=t||{
+   id:nextTaskId(),date:currentDay,name:'',category:'客先案件',
+   projectId:presetProject,employeeId:activeEmployees()[0]?.id||'',
+   vehicleId:'',start:'08:30',end:'17:30',status:'confirmed',
+   urgent:false,passengerIds:[],history:[]
+ };
+ const cats=['客先案件','社内案件','その他'];
 
-'use strict';
-const KEY='attendancePwaV6',LEGACY_KEY='attendancePwaV5',OLDER_KEY='attendancePwaV4',
-EMP_STORE_KEY='attendancePwaV82ByEmployee',ACTIVE_EMP_KEY='attendancePwaV82ActiveEmployee',
-AUTH_KEY=KEY+'.authHash',SESSION_KEY=KEY+'.sessionUntil',SESSION_DAYS=30;
-const EMPLOYEES=[
-{id:'EMP-001',name:'社長'},{id:'EMP-002',name:'専務'},{id:'EMP-003',name:'山田'},{id:'EMP-004',name:'佐藤'},{id:'EMP-005',name:'鈴木'}
-];
-let activeEmployeeId=localStorage.getItem(ACTIVE_EMP_KEY)||'EMP-004';
-const defaults={version:8.1,settings:{fiscalYear:new Date().getFullYear(),fiscalStartMonth:4,fiscalStartDay:21,cutoffDay:20,annualHolidayTarget:110,standardHours:8,baseBreak:1,extraBreak:.25,extraBreakAfter:'18:00',roundMinutes:15,roundStart:'切上',roundEnd:'切捨',earlyStart:'05:00',normalStart:'08:30',normalEnd:'17:30',nightStart:'22:00',monthOtLimit:45,yearOtLimit:360},records:{},calendar:{},holidayHistory:[]};
-let state=load(),dialogDate='',editDate='',deferredPrompt=null,applyingCloudState=false;
-const $=id=>document.getElementById(id),pad=n=>String(n).padStart(2,'0');
-function employeeStore(){
-  try{return JSON.parse(localStorage.getItem(EMP_STORE_KEY)||'{}')}catch{return{}}
-}
-function migrateLegacyToEmployee004(){
-  const store=employeeStore();
-  if(store['EMP-004'])return store;
-  try{
-    const raw=JSON.parse(localStorage.getItem(KEY)||localStorage.getItem(LEGACY_KEY)||localStorage.getItem(OLDER_KEY)||'{}');
-    const hasOld=Object.keys(raw.records||{}).length||Object.keys(raw.calendar||{}).length||Object.keys(raw.settings||{}).length;
-    if(hasOld){
-      store['EMP-004']={
-        version:8.2,
-        settings:Object.assign({},defaults.settings,raw.settings||{}),
-        records:raw.records||{},
-        calendar:raw.calendar||{},
-        holidayHistory:Array.isArray(raw.holidayHistory)?raw.holidayHistory:[]
-      };
-      localStorage.setItem(EMP_STORE_KEY,JSON.stringify(store));
-      localStorage.setItem('attendancePwaV82MigrationBackup',JSON.stringify(raw));
-      console.info('既存TIMEデータをEMP-004へ移行しました');
-    }
-  }catch(e){console.error('EMP-004移行失敗',e)}
-  return store;
-}
-function blankEmployeeState(){
-  return {version:8.2,settings:Object.assign({},defaults.settings),records:{},calendar:{},holidayHistory:[]};
-}
-function load(){
-  const store=migrateLegacyToEmployee004();
-  const raw=store[activeEmployeeId]||{};
-  return{
-    version:8.2,
-    settings:Object.assign({},defaults.settings,raw.settings||{}),
-    records:raw.records||{},
-    calendar:raw.calendar||{},
-    holidayHistory:Array.isArray(raw.holidayHistory)?raw.holidayHistory:[]
-  }
-}
-function persist(){
-  try{
-    state.version=8.1;
-    const text=JSON.stringify(state);
-    const store=employeeStore();
-    store[activeEmployeeId]=state;
-    localStorage.setItem(EMP_STORE_KEY,JSON.stringify(store));
-    localStorage.setItem(ACTIVE_EMP_KEY,activeEmployeeId);
-    // EMP-004には従来キーも互換用として残す。既存バックアップ/旧機能を壊さないため。
-    if(activeEmployeeId==='EMP-004')localStorage.setItem(KEY,text);
-    const check=JSON.stringify(employeeStore()[activeEmployeeId]||{});
-    if(check!==text)throw new Error('保存内容の照合に失敗しました');
-    if(!applyingCloudState){
-      window.dispatchEvent(new CustomEvent('attendance-local-change',{detail:structuredClone(state)}))
-    }
-    return true
-  }catch(e){
-    console.error(e);
-    alert('ブラウザへの保存に失敗しました：'+e.message);
-    return false
-  }
-}
-function iso(d=new Date()){return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`}
-function parseIso(k){const [y,m,d]=k.split('-').map(Number);return new Date(y,m-1,d)}
-function hm(d=new Date()){return `${pad(d.getHours())}:${pad(d.getMinutes())}`}
-function mins(t){if(!t)return null;const [h,m]=t.split(':').map(Number);return h*60+m}
-function duration(a,b){let x=mins(a),y=mins(b);if(x==null||y==null)return 0;if(y<x)y+=1440;return(y-x)/60}
-function roundTime(t,u,mode){if(!t)return'';let v=mins(t),unit=Math.max(1,+u||1),r=mode==='切上'?Math.ceil(v/unit)*unit:mode==='切捨'?Math.floor(v/unit)*unit:Math.round(v/unit)*unit;r=((r%1440)+1440)%1440;return`${pad(Math.floor(r/60))}:${pad(r%60)}`}
-function overlap(start,end,bs,be){let s=mins(start),e=mins(end),a=mins(bs),b=mins(be);if([s,e,a,b].some(v=>v==null))return 0;if(e<s)e+=1440;if(b<=a)b+=1440;return(Math.max(0,Math.min(e,b)-Math.max(s,a))+Math.max(0,Math.min(e,b+1440)-Math.max(s,a+1440)))/60}
-function safeDate(y,m,d){const last=new Date(y,m+1,0).getDate();return new Date(y,m,Math.min(Math.max(1,d),last))}
-function addDays(d,n){const x=new Date(d);x.setDate(x.getDate()+n);return x}
-function closingDateOnOrAfter(start,cutoff){const same=safeDate(start.getFullYear(),start.getMonth(),cutoff);return same>=start?same:safeDate(start.getFullYear(),start.getMonth()+1,cutoff)}
-function buildPeriods(s=state.settings){const y=+s.fiscalYear,m=Math.min(12,Math.max(1,+s.fiscalStartMonth||4)),day=Math.min(31,Math.max(1,+s.fiscalStartDay||21)),cut=Math.min(31,Math.max(1,+s.cutoffDay||20));let start=safeDate(y,m-1,day);const arr=[];for(let i=0;i<12;i++){const end=closingDateOnOrAfter(start,cut);arr.push({index:i,start:new Date(start),end:new Date(end),label:`${start.getMonth()+1}月度`,range:`${start.getFullYear()}/${start.getMonth()+1}/${start.getDate()}～${end.getFullYear()}/${end.getMonth()+1}/${end.getDate()}`});start=addDays(end,1)}return arr}
-function fiscalBounds(){const p=buildPeriods();return[p[0].start,p[11].end]}
-function periodForDate(d){return buildPeriods().find(p=>d>=p.start&&d<=p.end)||null}
-function allKeys(){const[a,b]=fiscalBounds(),arr=[];for(let d=new Date(a);d<=b;d.setDate(d.getDate()+1))arr.push(iso(d));return arr}
-function defaultHoliday(d){if(d.getDay()===0)return{type:'法定休日',name:''};if(d.getDay()===6)return{type:'所定休日',name:''};return{type:'勤務日',name:''}}
-function holidayFor(k){return state.calendar[k]||defaultHoliday(parseIso(k))}
-function calcRecord(k,r={}){
-  const s=state.settings;
-  const rs=roundTime(r.start,s.roundMinutes,s.roundStart);
-  const re=roundTime(r.end,s.roundMinutes,s.roundEnd);
-  const isWork=['出勤','休日出勤'].includes(r.type);
-  const extra=(r.end&&r.start&&(mins(r.end)<mins(r.start)||mins(r.end)>=mins(s.extraBreakAfter)))?+s.extraBreak:0;
-  const br=isWork?(+s.baseBreak+extra):0;
-  const outside=duration(r.out,r.back);
-  const work=Math.max(0,duration(rs,re)-br-outside);
-  let early=overlap(rs,re,s.earlyStart,s.normalStart);
-  let evening=overlap(rs,re,s.normalEnd,s.nightStart);
-  let night=overlap(rs,re,s.nightStart,s.earlyStart);
-  if(r.out&&r.back){
-    early=Math.max(0,early-overlap(r.out,r.back,s.earlyStart,s.normalStart));
-    evening=Math.max(0,evening-overlap(r.out,r.back,s.normalEnd,s.nightStart));
-    night=Math.max(0,night-overlap(r.out,r.back,s.nightStart,s.earlyStart));
-  }
-  const hol=holidayFor(k);
-  const dailyOvertime=isWork&&hol.type!=='法定休日'?Math.max(0,work-(+s.standardHours||8)):0;
-  const scheduledHolidayWork=isWork&&hol.type==='所定休日'?work:0;
-  const statutoryHolidayWork=isWork&&hol.type==='法定休日'?work:0;
-  const compEarn=r.type==='休日出勤'&&hol.type!=='勤務日'&&work>0?1:0;
-  const compUse=r.type==='代休'?1:0;
-  return{rs,re,breakHours:br,outside,work,early,evening,night,hol,dailyOvertime,scheduledHolidayWork,statutoryHolidayWork,compEarn,compUse};
-}
-function startOfWeekMonday(d){const x=new Date(d),day=x.getDay(),diff=day===0?-6:1-day;x.setDate(x.getDate()+diff);x.setHours(0,0,0,0);return x}
-function weeklyOvertimeMap(){
-  const s=state.settings,result={},weeks=new Map();
-  for(const k of allKeys()){const wk=iso(startOfWeekMonday(parseIso(k)));if(!weeks.has(wk))weeks.set(wk,[]);weeks.get(wk).push(k)}
-  for(const weekKeys of weeks.values()){
-    weekKeys.sort();let cumulativeStandardPart=0;
-    for(const k of weekKeys){
-      const c=calcRecord(k,state.records[k]||{});
-      if(c.hol.type==='法定休日'||c.work<=0){result[k]={weeklyExtra:0,overtime:0,scheduledHolidayWork:c.scheduledHolidayWork,statutoryHolidayWork:c.statutoryHolidayWork};continue}
-      const standardPart=Math.min(c.work,+s.standardHours||8);
-      const before=cumulativeStandardPart,after=before+standardPart;
-      const weeklyExtra=Math.max(0,after-40)-Math.max(0,before-40);
-      cumulativeStandardPart=after;
-      result[k]={weeklyExtra,overtime:c.dailyOvertime+weeklyExtra,scheduledHolidayWork:c.scheduledHolidayWork,statutoryHolidayWork:c.statutoryHolidayWork};
-    }
-  }
-  return result
-}
-function stats(){
-  let comp=0,yearOt=0,holidayWorkDays=0,planned=0,statutoryHolidayHours=0;
-  const otMap=weeklyOvertimeMap();
-  const months=buildPeriods().map(p=>({label:p.label,range:p.range,work:0,ot:0,scheduledHolidayWorkDays:0,statutoryHolidayWork:0,comp:0}));
-  for(const k of allKeys()){
-    const c=calcRecord(k,state.records[k]||{}),ot=otMap[k]?.overtime||0;
-    if(c.hol.type!=='勤務日')planned++;
-    comp+=c.compEarn-c.compUse;yearOt+=ot;statutoryHolidayHours+=c.statutoryHolidayWork;if(c.compEarn)holidayWorkDays++;
-    const p=periodForDate(parseIso(k));if(p){const m=months[p.index];m.work+=c.work;m.ot+=ot;if(c.scheduledHolidayWork>0)m.scheduledHolidayWorkDays++;m.statutoryHolidayWork+=c.statutoryHolidayWork;m.comp=comp}
-  }
-  const used=Object.values(state.records).filter(r=>r.type==='代休').length;
-  return{comp,yearOt,holidayWorkDays,planned,actualHoliday:planned-holidayWorkDays+used,statutoryHolidayHours,months,otMap};
-}
-function formRecord(){return{type:$('workType').value,start:$('start').value,end:$('end').value,out:$('out').value,back:$('back').value,note:$('note').value}}
-function previewToday(){
-  const key=iso(),draft=formRecord(),before=state.records[key];
-  state.records[key]=draft;
-  const c=calcRecord(key,draft),ot=weeklyOvertimeMap()[key]?.overtime||0;
-  if(before)state.records[key]=before;else delete state.records[key];
-  $('todayBreak').textContent=c.breakHours.toFixed(2)+'h';
-  $('todayOutside').textContent=c.outside.toFixed(2)+'h';
-  $('todayWork').textContent=c.work.toFixed(2)+'h';
-  $('todayOt').textContent=ot.toFixed(2)+'h';
-  $('todayBands').textContent=`${c.early.toFixed(2)} / ${c.evening.toFixed(2)} / ${c.night.toFixed(2)}h`
-}
-function loadTodayForm(){const r=state.records[iso()]||{type:'出勤'};$('workType').value=r.type||'出勤';['start','end','out','back','note'].forEach(id=>$(id).value=r[id]||'');previewToday()}
-
-function hoursToClock(h){
-  const total=Math.max(0,Math.round((+h||0)*60));
-  return `${Math.floor(total/60)}:${pad(total%60)}`
-}
-function weekSummaryFor(start){
-  const otMap=weeklyOvertimeMap();
-  let basis=0,work=0,ot=0,stat=0,scheduled=0,night=0;
-  const days=[];
-  for(let i=0;i<7;i++){
-    const d=addDays(start,i),k=iso(d),c=calcRecord(k,state.records[k]||{}),o=otMap[k]?.overtime||0;
-    work+=c.work;ot+=o;stat+=c.statutoryHolidayWork;scheduled+=c.scheduledHolidayWork;night+=c.night;
-    if(c.hol.type!=='法定休日')basis+=c.work;
-    days.push(k)
-  }
-  return{start:new Date(start),end:addDays(start,6),days,basis,work,ot,stat,scheduled,night}
-}
-function periodWeekSummaries(p){
-  const first=startOfWeekMonday(p.start),arr=[];
-  for(let d=new Date(first);d<=p.end;d=addDays(d,7))arr.push(weekSummaryFor(d));
-  return arr
-}
-function currentOverviewPeriod(){
-  const periods=buildPeriods(),sel=$('overviewPeriod');
-  if(!sel)return periods[0];
-  const idx=Math.min(periods.length-1,Math.max(0,+sel.value||0));
-  return periods[idx]
-}
-function overviewRowClass(type){
-  if(type==='所定休日')return'ov-scheduled';
-  if(type==='法定休日')return'ov-statutory';
-  if(type==='会社休業日')return'ov-company';
-  return'ov-work'
-}
-function renderOverview(){
-  const periods=buildPeriods(),sel=$('overviewPeriod'),prev=sel.value,current=periodForDate(new Date());
-  sel.innerHTML=periods.map(p=>`<option value="${p.index}">${p.label}（${p.range}）</option>`).join('');
-  sel.value=prev!==''&&periods[+prev]?prev:String(current?current.index:0);
-  const p=currentOverviewPeriod(),otMap=weeklyOvertimeMap(),balances=periodCompBalances();
-  $('overviewTitle').textContent=p.label;
-  $('overviewRange').textContent=p.range;
-  let work=0,ot=0,stat=0,scheduled=0,night=0,days=0;
-  const rows=[];
-  for(let d=new Date(p.start);d<=p.end;d=addDays(d,1)){
-    const k=iso(d),r=state.records[k]||{},c=calcRecord(k,r),o=otMap[k]?.overtime||0,h=holidayFor(k);
-    work+=c.work;ot+=o;stat+=c.statutoryHolidayWork;scheduled+=c.scheduledHolidayWork;night+=c.night;
-    if(c.work>0)days++;
-    rows.push(`<tr class="${overviewRowClass(h.type)} ${c.work>0?'ov-recorded':''}" data-overview-date="${k}">
-      <th class="sticky-day">${d.getDate()} <small>${['日','月','火','水','木','金','土'][d.getDay()]}</small></th>
-      <td>${h.type==='勤務日'?(r.type||''):h.type.replace('休日','休')}</td>
-      <td>${r.start||'<span class="muted-cell">―</span>'}</td>
-      <td>${r.end||'<span class="muted-cell">―</span>'}</td>
-      <td>${c.work?hoursToClock(c.work):''}</td>
-      <td class="${o>0?'ot-positive':''}">${o?hoursToClock(o):''}</td>
-      <td class="${c.statutoryHolidayWork>0?'stat-positive':''}">${c.statutoryHolidayWork?hoursToClock(c.statutoryHolidayWork):''}</td>
-      <td>${c.night?hoursToClock(c.night):''}</td>
-      <td class="overview-note">${escapeAttr(r.note||'')}</td>
-    </tr>`);
-    if(d.getDay()===0 || iso(d)===iso(p.end)){
-      const ws=weekSummaryFor(startOfWeekMonday(d));
-      rows.push(`<tr class="week-total"><th class="sticky-day" colspan="2">週計 ${ws.start.getMonth()+1}/${ws.start.getDate()}–${ws.end.getMonth()+1}/${ws.end.getDate()}</th><td colspan="2">40h判定 ${hoursToClock(ws.basis)}</td><td>${hoursToClock(ws.work)}</td><td>${hoursToClock(ws.ot)}</td><td>${hoursToClock(ws.stat)}</td><td>${hoursToClock(ws.night)}</td><td></td></tr>`)
-    }
-  }
-  $('overviewRows').innerHTML=rows.join('');
-  $('overviewWork').textContent=hoursToClock(work);$('overviewOt').textContent=hoursToClock(ot);$('overviewStat').textContent=hoursToClock(stat);$('overviewScheduled').textContent=hoursToClock(scheduled);$('overviewComp').textContent=(balances[iso(p.end)]||0).toFixed(1)+'日';
-  $('overviewFootDays').textContent=`出勤 ${days}日`;$('overviewFootWork').textContent=hoursToClock(work);$('overviewFootOt').textContent=hoursToClock(ot);$('overviewFootStat').textContent=hoursToClock(stat);$('overviewFootNight').textContent=hoursToClock(night);
-  $('overviewWeeks').innerHTML=periodWeekSummaries(p).map(w=>{
-    const cls=w.ot>=15?'danger':w.ot>0?'warning':'';
-    const remain=Math.max(0,40-w.basis);
-    return `<article class="week-card ${cls}"><div class="week-range">${w.start.getMonth()+1}/${w.start.getDate()}〜${w.end.getMonth()+1}/${w.end.getDate()}</div><div class="week-values"><span>40h判定</span><b>${hoursToClock(w.basis)}</b><span>${w.basis<40?'40hまで残':'時間外'}</span><b>${w.basis<40?hoursToClock(remain):hoursToClock(w.ot)}</b><span>法定休日</span><b>${hoursToClock(w.stat)}</b></div></article>`
-  }).join('');
-  document.querySelectorAll('[data-overview-date]').forEach(tr=>tr.addEventListener('click',e=>{if(e.target.closest('button,input,select,textarea,a'))return;openOverviewInlineEdit(tr.dataset.overviewDate,tr)}))
-}
-let overviewInlineDate='';
-function closeOverviewInlineEdit(){
-  const ed=document.querySelector('.overview-inline-editor');if(ed)ed.remove();
-  document.querySelectorAll('[data-overview-date].is-editing').forEach(x=>x.classList.remove('is-editing'));
-  overviewInlineDate=''
-}
-function overviewInlinePreview(k,box){
-  const r={type:box.querySelector('[data-ov-field="type"]').value,start:box.querySelector('[data-ov-field="start"]').value,end:box.querySelector('[data-ov-field="end"]').value,out:box.querySelector('[data-ov-field="out"]').value,back:box.querySelector('[data-ov-field="back"]').value,note:box.querySelector('[data-ov-field="note"]').value};
-  const old=state.records[k];state.records[k]=r;
-  const c=calcRecord(k,r),o=weeklyOvertimeMap()[k]?.overtime||0;
-  if(old)state.records[k]=old;else delete state.records[k];
-  const target=box.querySelector('[data-ov-preview]');if(target)target.innerHTML=`<span>就労 <b>${hoursToClock(c.work)}</b></span><span>時間外 <b>${hoursToClock(o)}</b></span><span>法定休日 <b>${hoursToClock(c.statutoryHolidayWork)}</b></span><span>深夜 <b>${hoursToClock(c.night)}</b></span>`
-}
-function openOverviewInlineEdit(k,tr){
-  if(overviewInlineDate===k){closeOverviewInlineEdit();return}
-  closeOverviewInlineEdit();overviewInlineDate=k;tr.classList.add('is-editing');
-  const r=state.records[k]||{},h=holidayFor(k),d=parseIso(k),editor=document.createElement('tr');
-  editor.className='overview-inline-editor';editor.dataset.editorDate=k;
-  const td=document.createElement('td');td.colSpan=9;
-  td.innerHTML=`<div class="overview-inline-head"><b>${d.getMonth()+1}/${d.getDate()}（${['日','月','火','水','木','金','土'][d.getDay()]}）</b><span>${h.type}${h.name?'・'+escapeAttr(h.name):''}</span></div>
-  <div class="overview-inline-grid">
-    <label>勤務区分<select data-ov-field="type"><option value="">未入力</option>${['出勤','休日出勤','公休','有休','代休','特休'].map(x=>`<option ${r.type===x?'selected':''}>${x}</option>`).join('')}</select></label>
-    <label>出勤<input data-ov-field="start" type="time" value="${escapeAttr(r.start||'')}"></label>
-    <label>退勤<input data-ov-field="end" type="time" value="${escapeAttr(r.end||'')}"></label>
-    <label>外出<input data-ov-field="out" type="time" value="${escapeAttr(r.out||'')}"></label>
-    <label>戻り<input data-ov-field="back" type="time" value="${escapeAttr(r.back||'')}"></label>
-    <label class="wide">備考<textarea data-ov-field="note" rows="2">${escapeAttr(r.note||'')}</textarea></label>
+ openModal(edit?'タスク編集':'タスク追加',`
+  <div class=task-kind>
+   ${cats.map(k=>`<button type=button class="kindbtn ${t0.category===k?'active':''}" data-kind="${k}">${k}</button>`).join('')}
   </div>
-  <div class="overview-inline-preview" data-ov-preview></div>
-  <div class="overview-inline-actions"><button type="button" class="primary" data-ov-save>保存</button><button type="button" data-ov-cancel>キャンセル</button><button type="button" class="danger-button" data-ov-delete>入力削除</button></div>`;
-  editor.appendChild(td);tr.insertAdjacentElement('afterend',editor);
-  editor.querySelectorAll('input,select,textarea').forEach(el=>el.addEventListener('input',()=>overviewInlinePreview(k,editor)));
-  editor.querySelector('[data-ov-cancel]').onclick=closeOverviewInlineEdit;
-  editor.querySelector('[data-ov-save]').onclick=()=>{
-    const rec={type:editor.querySelector('[data-ov-field="type"]').value,start:editor.querySelector('[data-ov-field="start"]').value,end:editor.querySelector('[data-ov-field="end"]').value,out:editor.querySelector('[data-ov-field="out"]').value,back:editor.querySelector('[data-ov-field="back"]').value,note:editor.querySelector('[data-ov-field="note"]').value};
-    if(saveRecord(k,rec)){overviewInlineDate='';renderAll();if(k===iso())loadTodayForm();requestAnimationFrame(()=>{const row=document.querySelector(`[data-overview-date="${k}"]`);if(row){row.classList.add('overview-save-flash');setTimeout(()=>row.classList.remove('overview-save-flash'),800)}})}
-  };
-  editor.querySelector('[data-ov-delete]').onclick=()=>{if(!confirm(`${k} の勤怠入力を削除しますか？`))return;delete state.records[k];if(persist()){overviewInlineDate='';renderAll();if(k===iso())loadTodayForm()}};
-  overviewInlinePreview(k,editor);
-  const first=editor.querySelector('select,input');if(first)first.focus({preventScroll:true})
-}
-function openDayEdit(k){
-  editDate=k;const r=state.records[k]||{},h=holidayFor(k),d=parseIso(k),ot=weeklyOvertimeMap()[k]?.overtime||0,c=calcRecord(k,r);
-  $('dayEditDate').textContent=`${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}（${['日','月','火','水','木','金','土'][d.getDay()]}）`;
-  $('dayEditHoliday').textContent=`${h.type}${h.name?'・'+h.name:''}`;
-  $('dayEditType').value=r.type||'';$('dayEditStart').value=r.start||'';$('dayEditEnd').value=r.end||'';$('dayEditOut').value=r.out||'';$('dayEditBack').value=r.back||'';$('dayEditNote').value=r.note||'';
-  $('dayEditCalc').innerHTML=`<div><span>就労</span><strong>${hoursToClock(c.work)}</strong></div><div><span>時間外</span><strong>${hoursToClock(ot)}</strong></div><div><span>法定休日</span><strong>${hoursToClock(c.statutoryHolidayWork)}</strong></div><div><span>代休</span><strong>${c.compEarn?'+1日':'―'}</strong></div>`;
-  $('dayEditDialog').showModal()
-}
-function saveOverviewDay(){
-  const record={type:$('dayEditType').value,start:$('dayEditStart').value,end:$('dayEditEnd').value,out:$('dayEditOut').value,back:$('dayEditBack').value,note:$('dayEditNote').value};
-  if(saveRecord(editDate,record)){renderAll();if(editDate===iso())loadTodayForm();$('dayEditDialog').close()}
-}
-function deleteOverviewDay(){
-  if(!editDate)return;if(!confirm(`${editDate} の勤怠入力を削除しますか？`))return;delete state.records[editDate];persist();renderAll();if(editDate===iso())loadTodayForm();$('dayEditDialog').close()
-}
-function renderHolidayHistory(){
-  const box=$('holidayHistory');if(!box)return;const list=(state.holidayHistory||[]).slice().reverse().slice(0,30);
-  box.innerHTML=list.length?list.map(x=>`<div class="history-row"><b>${x.date}</b><div>${escapeAttr(x.from||'')} → ${escapeAttr(x.to||'')}<br><small>${new Date(x.changedAt).toLocaleString('ja-JP')}</small></div><div>${escapeAttr(x.reason||'')}</div></div>`).join(''):'<p class="hint">変更履歴はありません。</p>'
-}
-function renderTodayMetrics(){const st=stats(),p=periodForDate(new Date()),m=p?st.months[p.index]:{ot:0};$('todayLabel').textContent=new Intl.DateTimeFormat('ja-JP',{dateStyle:'full'}).format(new Date());$('metricComp').textContent=st.comp.toFixed(1)+'日';$('metricMonthOt').textContent=m.ot.toFixed(1)+'h';$('metricYearOt').textContent=st.yearOt.toFixed(1)+'h';$('todayPeriod').textContent=p?`${p.label}　${p.range}`:'本日は設定年度の範囲外です'}
-function renderDashboard(){
-  const st=stats(),limit=+state.settings.yearOtLimit||360;
-  $('dashComp').textContent=st.comp.toFixed(1)+'日';
-  $('dashPlanned').textContent=st.planned+'日';
-  $('dashHolidayWork').textContent=st.months.reduce((a,m)=>a+m.scheduledHolidayWorkDays,0)+'日';
-  if($('dashStatutoryHolidayWork'))$('dashStatutoryHolidayWork').textContent=st.statutoryHolidayHours.toFixed(1)+'h';
-  $('dashActualHoliday').textContent=st.actualHoliday+'日';
-  $('yearOtBar').style.width=Math.min(100,st.yearOt/limit*100)+'%';
-  $('yearOtText').textContent=`時間外 ${st.yearOt.toFixed(1)} / ${limit} h（残り ${(limit-st.yearOt).toFixed(1)} h）／ 法定休日労働 ${st.statutoryHolidayHours.toFixed(1)} h`;
-  $('monthRows').innerHTML=st.months.map(m=>`<tr><td>${m.label}<br><small>${m.range}</small></td><td>${m.work.toFixed(1)}</td><td>${m.ot.toFixed(1)}</td><td>${m.scheduledHolidayWorkDays}</td><td>${m.statutoryHolidayWork.toFixed(1)}</td><td>${m.comp.toFixed(1)}</td></tr>`).join('')
-}
-function renderCalendar(){const val=$('calendarMonth').value||iso().slice(0,7);$('calendarMonth').value=val;const[y,m]=val.split('-').map(Number),first=new Date(y,m-1,1),start=new Date(y,m-1,1-first.getDay()),cells=[];for(let i=0;i<42;i++){const d=new Date(start);d.setDate(start.getDate()+i);const k=iso(d),h=holidayFor(k),cls=d.getMonth()!==m-1?'outside':h.type==='勤務日'?'work':'holiday';cells.push(`<button class="day ${cls}" data-date="${k}"><b>${d.getDate()}</b><small>${h.name||h.type}</small></button>`)}$('calendarGrid').innerHTML=cells.join('');document.querySelectorAll('.day').forEach(b=>b.onclick=()=>openHoliday(b.dataset.date))}
-function ledgerTypeOptions(selected){
-  const options=['','出勤','休日出勤','公休','有休','代休','特休'];
-  return options.map(v=>`<option value="${v}"${v===selected?' selected':''}>${v||'未入力'}</option>`).join('')
-}
-function escapeAttr(v){return String(v??'').replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;').replaceAll('>','&gt;')}
-function saveRecord(date,record){const clean={type:record.type||'',start:record.start||'',end:record.end||'',out:record.out||'',back:record.back||'',note:record.note||'',updatedAt:new Date().toISOString()};const hasInput=[clean.type,clean.start,clean.end,clean.out,clean.back,clean.note].some(v=>String(v).trim()!=='');if(hasInput)state.records[date]=clean;else delete state.records[date];if(!persist())return false;try{const stored=employeeStore()[activeEmployeeId]||{};const ok=hasInput?Boolean(stored.records&&stored.records[date]):!(stored.records&&stored.records[date]);if(!ok)throw new Error('保存後の確認に失敗しました');return true}catch(e){console.error(e);alert('保存確認に失敗しました：'+e.message);return false}}
-function isMobileLedger(){return window.matchMedia('(max-width:720px)').matches}
-function ledgerEntries(){return document.querySelectorAll('[data-ledger-entry][data-date]')}
-function updateLedgerCalculations(){
-  let comp=0;const otMap=weeklyOvertimeMap();
-  for(const k of allKeys()){
-    const c=calcRecord(k,state.records[k]||{});comp+=c.compEarn-c.compUse;
-    document.querySelectorAll(`[data-ledger-entry][data-date="${k}"]`).forEach(entry=>{
-      const work=entry.querySelector('[data-calc="work"]'),ot=entry.querySelector('[data-calc="ot"]'),compEl=entry.querySelector('[data-calc="comp"]');
-      if(work)work.textContent=c.work.toFixed(2);if(ot)ot.textContent=(otMap[k]?.overtime||0).toFixed(2);if(compEl)compEl.textContent=comp.toFixed(1)
-    })
-  }
-}
-function markRowDirty(entry){
-  entry.classList.remove('saved-ok','ledger-card-save-flash');
-  entry.classList.add('dirty');
-  const b=entry.querySelector('.save-ledger-row');
-  const status=entry.querySelector('.ledger-card-status');
-  if(b){b.textContent='保存';b.classList.remove('saved')}
-  if(status)status.textContent='未保存'
-}
-function bindLedgerEntries(){
-  ledgerEntries().forEach(entry=>{
-    entry.querySelectorAll('input,select,textarea').forEach(el=>{
-      el.addEventListener('input',()=>markRowDirty(entry));
-      el.addEventListener('change',()=>markRowDirty(entry))
-    });
-    const save=entry.querySelector('.save-ledger-row');
-    const clear=entry.querySelector('.clear-ledger-row');
-    if(save)save.onclick=()=>saveLedgerRow(entry);
-    if(clear)clear.onclick=()=>clearLedgerRow(entry)
-  })
-}
-function periodCompBalances(){
-  const balances={};let comp=0;
-  for(const k of allKeys()){
-    const c=calcRecord(k,state.records[k]||{});
-    comp+=c.compEarn-c.compUse;
-    balances[k]=comp
-  }
-  return balances
-}
-function holidayClass(type){
-  if(type==='所定休日')return'holiday-scheduled';
-  if(type==='法定休日')return'holiday-statutory';
-  if(type==='会社休業日')return'holiday-company';
-  return'holiday-workday'
-}
-function calendarBadge(type){
-  const map={
-    '勤務日':['calendar-workday','勤務日'],
-    '所定休日':['calendar-scheduled','所定休日'],
-    '法定休日':['calendar-statutory','法定休日'],
-    '会社休業日':['calendar-company','会社休業日']
-  };
-  const [cls,label]=map[type]||map['勤務日'];
-  return`<span class="status-badge ${cls}">会社：${label}</span>`
-}
-function workBadge(type){
-  if(!type)return'<span class="status-badge work-empty">実績：未入力</span>';
-  return`<span class="status-badge work-${type}">実績：${type}</span>`
-}
-function compWarningBadge(c){
-  return c.compEarn>0?'<span class="status-badge comp-warning">代休 +1日</span>':''
-}
-function desktopLedgerRow(k,d,r,c,comp){
-  const hol=holidayFor(k),tr=document.createElement('tr');
-  tr.dataset.date=k;tr.dataset.ledgerEntry='1';
-  tr.className=`${holidayClass(hol.type)} type-${r.type||''}`;
-  tr.innerHTML=`
-    <td>
-      ${k.slice(5)}（${['日','月','火','水','木','金','土'][d.getDay()]}）
-      <div class="status-badges">${calendarBadge(hol.type)}${workBadge(r.type||'')}${compWarningBadge(c)}</div>
-    </td>
-    <td>${hol.type}</td>
-    <td><select data-field="type">${ledgerTypeOptions(r.type||'')}</select></td>
-    <td><input data-field="start" type="time" value="${escapeAttr(r.start||'')}"></td>
-    <td><input data-field="end" type="time" value="${escapeAttr(r.end||'')}"></td>
-    <td><input data-field="out" type="time" value="${escapeAttr(r.out||'')}"></td>
-    <td><input data-field="back" type="time" value="${escapeAttr(r.back||'')}"></td>
-    <td data-calc="work">${c.work.toFixed(2)}</td>
-    <td data-calc="ot">${(weeklyOvertimeMap()[k]?.overtime||0).toFixed(2)}</td>
-    <td data-calc="comp">${comp.toFixed(1)}</td>
-    <td><input class="ledger-note" data-field="note" type="text" value="${escapeAttr(r.note||'')}"></td>
-    <td><button type="button" class="save-ledger-row">保存</button><br><button type="button" class="clear-ledger-row">削除</button></td>`;
-  return tr
-}
-function mobileLedgerCard(k,d,r,c,comp){
-  const hol=holidayFor(k),article=document.createElement('article');
-  article.dataset.date=k;article.dataset.ledgerEntry='1';
-  article.className=`ledger-card ${holidayClass(hol.type)} type-${r.type||''}`;
-  article.innerHTML=`
-    <div class="ledger-card-head">
-      <div>
-        <div class="ledger-card-date">${k.slice(5).replace('-','/')}（${['日','月','火','水','木','金','土'][d.getDay()]}）</div>
-        <div class="status-badges">${calendarBadge(hol.type)}${workBadge(r.type||'')}${compWarningBadge(c)}</div>
-      </div>
-      <span class="ledger-card-status">${r.updatedAt?'保存済':'未入力'}</span>
+  <input type=hidden id=mtCategory value="${t0.category||'客先案件'}">
+
+  <div class=form>
+   <div><label>日付</label><input id=mtDate type=date value="${t0.date}"></div>
+   <div><label>ID</label><input id=mtId value="${t0.id}" ${edit?'readonly':''}></div>
+
+   <div><label>案件</label>
+    <select id=mtProject>
+     <option value="">案件なし</option>
+     ${db.projects.filter(p=>p.status!=='完了'||p.id===t0.projectId).map(p=>`<option value="${p.id}" ${p.id===t0.projectId?'selected':''}>${projectLabel(p.id)}</option>`).join('')}
+    </select>
+   </div>
+
+   <div><label>内容</label><input id=mtName value="${t0.name||''}" placeholder="例：客先修理、据付工事、見積作成"></div>
+
+   <div><label>開始</label><input id=mtStart type=time step=900 value="${t0.start}"></div>
+   <div><label>終了</label><input id=mtEnd type=time step=900 value="${t0.end}"></div>
+
+   <div><label>主担当</label>
+    <select id=mtEmployee>
+     ${activeEmployees().map(x=>`<option value="${x.id}" ${x.id===t0.employeeId?'selected':''}>${x.name}</option>`).join('')}
+    </select>
+   </div>
+
+   <div><label>車両</label>
+    <select id=mtVehicle>
+     <option value="">-</option>
+     ${db.vehicles.filter(v=>v.active||v.id===t0.vehicleId).map(v=>`<option value="${v.id}" ${v.id===t0.vehicleId?'selected':''}>${v.name}</option>`).join('')}
+    </select>
+   </div>
+
+   <div style="grid-column:1/-1"><label>補助</label>
+    <div class=passenger-grid>
+     ${activeEmployees().filter(x=>x.id!==t0.employeeId).map(x=>`<label><input type=checkbox data-helper="${x.id}" ${(t0.passengerIds||[]).includes(x.id)?'checked':''}>${x.name}</label>`).join('')}
     </div>
-    <div class="ledger-card-grid">
-      <label class="full">勤務区分
-        <select data-field="type">${ledgerTypeOptions(r.type||'')}</select>
-      </label>
-      <label>出勤<input data-field="start" type="time" value="${escapeAttr(r.start||'')}"></label>
-      <label>退勤<input data-field="end" type="time" value="${escapeAttr(r.end||'')}"></label>
-      <label>外出<input data-field="out" type="time" value="${escapeAttr(r.out||'')}"></label>
-      <label>戻り<input data-field="back" type="time" value="${escapeAttr(r.back||'')}"></label>
-      <label class="full">備考<textarea data-field="note" rows="2">${String(r.note||'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')}</textarea></label>
-    </div>
-    <div class="ledger-card-metrics">
-      <div class="ledger-card-metric"><span>就労</span><strong data-calc="work">${c.work.toFixed(2)}h</strong></div>
-      <div class="ledger-card-metric"><span>時間外</span><strong data-calc="ot">${(weeklyOvertimeMap()[k]?.overtime||0).toFixed(2)}h</strong></div>
-      <div class="ledger-card-metric"><span>代休残</span><strong data-calc="comp">${comp.toFixed(1)}日</strong></div>
-    </div>
-    <div class="ledger-card-actions">
-      <button type="button" class="save-ledger-row">保存</button>
-      <button type="button" class="clear-ledger-row">削除</button>
-    </div>`;
-  return article
-}
-function renderLedger(){
-  const periods=buildPeriods(),prev=$('ledgerPeriod').value,current=periodForDate(new Date());
-  $('ledgerPeriod').innerHTML=periods.map(p=>`<option value="${p.index}">${p.label}（${p.range}）</option>`).join('');
-  $('ledgerPeriod').value=prev!==''&&periods[+prev]?prev:String(current?current.index:0);
-  const p=periods[+$('ledgerPeriod').value];
-  $('ledgerPeriodText').textContent=`${p.label}　${p.range}`;
-  $('ledgerRows').innerHTML='';
-  $('ledgerCards').innerHTML='';
-  const balances=periodCompBalances();
-  for(const k of allKeys()){
-    const d=parseIso(k);
-    if(d>=p.start&&d<=p.end){
-      const r=state.records[k]||{},c=calcRecord(k,r),comp=balances[k]||0;
-      if(isMobileLedger())$('ledgerCards').appendChild(mobileLedgerCard(k,d,r,c,comp));
-      else $('ledgerRows').appendChild(desktopLedgerRow(k,d,r,c,comp))
-    }
-  }
-  bindLedgerEntries()
-}
-function recordFromLedgerRow(entry){
-  const get=name=>entry.querySelector(`[data-field="${name}"]`)?.value||'';
-  return{type:get('type'),start:get('start'),end:get('end'),out:get('out'),back:get('back'),note:get('note')}
-}
-function saveLedgerRow(entry){
-  const k=entry.dataset.date,r=recordFromLedgerRow(entry);
-  if(!saveRecord(k,r))return false;
-  renderDashboard();renderTodayMetrics();if(k===iso())loadTodayForm();
-  updateLedgerCalculations();
-  const c=calcRecord(k,state.records[k]||{});
-  const hol=holidayFor(k);
-  entry.className=entry.className
-    .split(/\s+/)
-    .filter(x=>!x.startsWith('type-')&&!x.startsWith('holiday-')&&x!=='dirty'&&x!=='saved-ok'&&x!=='ledger-card-save-flash')
-    .join(' ');
-  entry.classList.add(holidayClass(hol.type),`type-${r.type||''}`,'saved-ok','ledger-card-save-flash');
-  const button=entry.querySelector('.save-ledger-row');
-  const status=entry.querySelector('.ledger-card-status');
-  const badges=entry.querySelector('.status-badges');
-  if(button){button.textContent='保存済';button.classList.add('saved')}
-  if(status)status.textContent='保存済';
-  if(badges)badges.innerHTML=calendarBadge(hol.type)+workBadge(r.type||'')+compWarningBadge(c);
-  $('ledgerSaveMessage').textContent=`${k} を保存しました。`;
-  setTimeout(()=>{
-    entry.classList.remove('ledger-card-save-flash');
-    $('ledgerSaveMessage').textContent=''
-  },1800);
-  return true
-}
-function clearLedgerRow(entry){
-  const k=entry.dataset.date;if(!confirm(`${k} の入力を削除しますか？`))return;
-  delete state.records[k];if(!persist())return;
-  renderDashboard();renderTodayMetrics();if(k===iso())loadTodayForm();
-  renderLedger();
-  $('ledgerSaveMessage').textContent=`${k} の入力を削除しました。`;
-  setTimeout(()=>{$('ledgerSaveMessage').textContent=''},2200)
-}
-function renderSettings(){Object.keys(state.settings).forEach(k=>{const e=$(k);if(e)e.value=state.settings[k]});renderPeriodPreview()}
-function renderPeriodPreview(){const temp={...state.settings,fiscalYear:+$('fiscalYear').value||state.settings.fiscalYear,fiscalStartMonth:+$('fiscalStartMonth').value||4,fiscalStartDay:+$('fiscalStartDay').value||21,cutoffDay:+$('cutoffDay').value||20},p=buildPeriods(temp);$('periodPreview').textContent=`第1月度：${p[0].label}　${p[0].range}　／　第12月度：${p[11].label}　${p[11].range}`;$('periodWarning').textContent=(+temp.fiscalStartDay===((+temp.cutoffDay)%31)+1||+temp.cutoffDay===31)?'':'期開始日と締め日の翌日が一致していないため、第1月度だけ通常より短い／長い場合があります。'}
-function renderAll(){renderOverview();renderTodayMetrics();renderDashboard();renderCalendar();renderHolidayHistory();renderLedger();renderSettings()}
-function saveToday(){if(!saveRecord(iso(),formRecord()))return;renderTodayMetrics();renderDashboard();renderLedger();$('saveMessage').textContent='保存しました';setTimeout(()=>$('saveMessage').textContent='',1800)}
-function openHoliday(k){dialogDate=k;const h=holidayFor(k);$('holidayDateLabel').textContent=k;$('holidayType').value=h.type;$('holidayName').value=h.name||'';$('holidayReason').value='';$('holidayDialog').showModal()}
-function saveSettings(){Object.keys(state.settings).forEach(k=>{const e=$(k);if(e)state.settings[k]=e.type==='number'?+e.value:e.value});persist();renderAll();loadTodayForm();alert('設定を保存しました')}
-async function sha256(t){const h=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(t));return[...new Uint8Array(h)].map(b=>b.toString(16).padStart(2,'0')).join('')}
-function sessionValid(){return +localStorage.getItem(SESSION_KEY)>Date.now()}
-function showLock(){const has=!!localStorage.getItem(AUTH_KEY);$('lockScreen').hidden=false;$('confirmPasswordWrap').hidden=has;$('lockDescription').textContent=has?'パスワードを入力してください。':'初回パスワードを設定してください。';$('loginButton').textContent=has?'ログイン':'パスワードを設定';$('loginPassword').value='';$('confirmPassword').value='';$('loginMessage').textContent=''}
-async function login(){const p=$('loginPassword').value,saved=localStorage.getItem(AUTH_KEY);if(p.length<4){$('loginMessage').textContent='4文字以上で入力してください。';return}if(!saved){if(p!==$('confirmPassword').value){$('loginMessage').textContent='確認用が一致しません。';return}localStorage.setItem(AUTH_KEY,await sha256(p))}else if(await sha256(p)!==saved){$('loginMessage').textContent='パスワードが違います。';return}localStorage.setItem(SESSION_KEY,String(Date.now()+SESSION_DAYS*86400000));$('lockScreen').hidden=true;renderAll();loadTodayForm()}
-function logout(){localStorage.removeItem(SESSION_KEY);showLock()}
-function download(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click();URL.revokeObjectURL(a.href)}
-function exportCsv(){const rows=[['日付','月度','期間','勤務区分','出勤','退勤','外出','戻り','備考']];Object.entries(state.records).sort().forEach(([k,r])=>{const p=periodForDate(parseIso(k));rows.push([k,p?.label||'',p?.range||'',r.type||'',r.start||'',r.end||'',r.out||'',r.back||'',r.note||''])});download('attendance.csv','\ufeff'+rows.map(r=>r.map(v=>`"${String(v).replaceAll('"','""')}"`).join(',')).join('\n'),'text/csv')}
-function normalizeHeader(v){return String(v??'').trim().replace(/\s+/g,'').replace(/[（）()]/g,'')}
-const aliases={
-  date:['日付','年月日','勤務日','出勤日','対象日'],
-  type:['勤務区分','区分','勤怠区分','勤務種別','勤務'],
-  start:['出勤','出勤時刻','始業','始業時刻','開始','開始時刻'],
-  end:['退勤','退勤時刻','終業','終業時刻','終了','終了時刻'],
-  out:['外出','外出時刻','中抜け開始'],
-  back:['戻り','戻り時刻','帰社','帰社時刻','中抜け終了'],
-  note:['備考','摘要','メモ','コメント']
-};
-function detectHeader(rows){for(let i=0;i<Math.min(rows.length,30);i++){const n=(rows[i]||[]).map(normalizeHeader);if(aliases.date.some(x=>n.includes(x))&&(aliases.type.some(x=>n.includes(x))||aliases.start.some(x=>n.includes(x))))return i}return-1}
-function mapCols(h){const n=h.map(normalizeHeader),o={};for(const[k,a]of Object.entries(aliases))o[k]=n.findIndex(x=>a.includes(x));return o}
-function excelDate(v,baseYear=state.settings.fiscalYear){
-  if(v==null||v==='')return'';
-  if(v instanceof Date&&!isNaN(v))return iso(v);
-  if(typeof v==='number'&&window.XLSX){
-    const p=XLSX.SSF.parse_date_code(v);
-    if(p&&p.y>=1900)return`${p.y}-${pad(p.m)}-${pad(p.d)}`
-  }
-  let s=String(v).trim();
-  if(!s)return'';
-  s=s.replace(/\([^)]*\)/g,'')
-     .replace(/[月火水木金土日]曜日?/g,'')
-     .replace(/\s+\d{1,2}:\d{2}(:\d{2})?$/,'')
-     .replace(/午前|午後/g,'')
-     .trim();
-  let m=s.match(/(\d{4})\s*[\/\-.年]\s*(\d{1,2})\s*[\/\-.月]\s*(\d{1,2})\s*日?/);
-  if(m)return`${m[1]}-${pad(m[2])}-${pad(m[3])}`;
-  m=s.match(/^(\d{1,2})\s*[\/\-.月]\s*(\d{1,2})\s*日?$/);
-  if(m){
-    let year=Number(baseYear)||new Date().getFullYear();
-    const month=Number(m[1]),fiscalStart=Number(state.settings.fiscalStartMonth)||4;
-    if(month<fiscalStart)year++;
-    return`${year}-${pad(month)}-${pad(m[2])}`
-  }
-  const parsed=new Date(s);
-  return isNaN(parsed)?'':iso(parsed)
-}
-function excelTime(v){
-  if(v==null||v==='')return'';
-  if(v instanceof Date&&!isNaN(v))return`${pad(v.getHours())}:${pad(v.getMinutes())}`;
-  if(typeof v==='number'){
-    const fraction=((v%1)+1)%1,t=Math.round(fraction*1440)%1440;
-    return`${pad(Math.floor(t/60))}:${pad(t%60)}`
-  }
-  const s=String(v).trim();
-  if(!s)return'';
-  const jp=s.match(/(午前|午後)?\s*(\d{1,2})\s*時(?:\s*(\d{1,2})\s*分?)?/);
-  if(jp){
-    let h=Number(jp[2]),m=Number(jp[3]||0);
-    if(jp[1]==='午後'&&h<12)h+=12;
-    if(jp[1]==='午前'&&h===12)h=0;
-    return`${pad(h)}:${pad(m)}`
-  }
-  const m=s.match(/(\d{1,2}):(\d{2})/);
-  return m?`${pad(m[1])}:${m[2]}`:''
-}
-function sheetCandidate(book,name){
-  const rows=XLSX.utils.sheet_to_json(book.Sheets[name],{header:1,defval:'',raw:true});
-  const hr=detectHeader(rows);
-  if(hr<0)return null;
-  const cols=mapCols(rows[hr]);
-  if(cols.date<0)return null;
-  let validDates=0,nonEmpty=0;
-  for(let i=hr+1;i<Math.min(rows.length,hr+400);i++){
-    const row=rows[i]||[];
-    if(row.some(v=>String(v??'').trim()!==''))nonEmpty++;
-    if(excelDate(row[cols.date]))validDates++
-  }
-  const mappedFields=['type','start','end','out','back','note'].filter(k=>cols[k]>=0).length;
-  const score=validDates*20+mappedFields*5+(cols.type>=0?10:0)+(cols.start>=0?10:0)+(cols.end>=0?10:0);
-  return{name,rows,hr,cols,validDates,nonEmpty,mappedFields,score}
-}
-async function importWorkbook(file){
-  $('importResult').textContent='読み込み中…';
-  $('importErrors').textContent='';
-  $('importSheetInfo').hidden=true;
-  try{
-    if(!window.XLSX)throw new Error('Excel読込ライブラリを読み込めません。通信状態を確認してください。');
-    const book=XLSX.read(await file.arrayBuffer(),{type:'array',cellDates:true,cellNF:true,cellText:true,raw:true});
-    const candidates=book.SheetNames.map(name=>sheetCandidate(book,name)).filter(Boolean).sort((a,b)=>b.score-a.score);
-    if(!candidates.length)throw new Error('「日付」を含む台帳形式のシートが見つかりません。');
-    const sel=candidates[0];
-    if(sel.validDates===0){
-      const samples=sel.rows.slice(sel.hr+1,sel.hr+8).map((r,i)=>`${sel.hr+i+2}行目：${String(r[sel.cols.date]??'')}`).join(' / ');
-      throw new Error(`日付列は見つかりましたが、日付を解析できません。読み取った値：${samples}`)
-    }
-    $('importSheetInfo').hidden=false;
-    $('importSheetInfo').textContent=`取込対象：${sel.name}（日付判定 ${sel.validDates}件、認識列 ${sel.mappedFields+1}項目）`;
-    const c=sel.cols;
-    let imported=0,skipped=0,over=0,errors=[];
-    for(let i=sel.hr+1;i<sel.rows.length;i++){
-      const row=sel.rows[i]||[];
-      if(!row.some(v=>String(v??'').trim()!==''))continue;
-      const rawDate=row[c.date],date=excelDate(rawDate);
-      if(!date){errors.push(`${i+1}行目：日付不明「${String(rawDate??'').slice(0,30)}」`);continue}
-      const old=state.records[date];
-      if(old&&$('importPolicy').value==='skip'){skipped++;continue}
-      const rawType=c.type>=0?String(row[c.type]??'').trim():'';
-      const normalizedType=['出勤','休日出勤','公休','有休','代休','特休'].includes(rawType)
-        ?rawType
-        :(rawType.includes('休日')&&rawType.includes('出勤')?'休日出勤':
-          rawType.includes('有休')?'有休':
-          rawType.includes('代休')?'代休':
-          rawType.includes('公休')?'公休':
-          rawType.includes('特休')?'特休':
-          rawType?'出勤':(old?.type||'出勤'));
-      state.records[date]={
-        type:normalizedType,
-        start:c.start>=0?excelTime(row[c.start]):old?.start||'',
-        end:c.end>=0?excelTime(row[c.end]):old?.end||'',
-        out:c.out>=0?excelTime(row[c.out]):old?.out||'',
-        back:c.back>=0?excelTime(row[c.back]):old?.back||'',
-        note:c.note>=0?String(row[c.note]??'').trim():old?.note||'',
-        updatedAt:new Date().toISOString(),
-        importedFrom:`${file.name} / ${sel.name}`
-      };
-      if(old)over++;
-      imported++
-    }
-    if(!persist())throw new Error('ブラウザへの保存に失敗しました。');
-    renderAll();loadTodayForm();
-    $('importResult').textContent=`${imported}件取込み、${over}件上書き、${skipped}件スキップ`;
-    $('importErrors').innerHTML=errors.length
-      ?`<b>確認事項 ${errors.length}件</b><br>${errors.slice(0,30).map(x=>escapeAttr(x)).join('<br>')}${errors.length>30?'<br>…':''}`
-      :'エラーはありません。'
-  }catch(e){
-    $('importResult').textContent='取込み失敗';
-    $('importErrors').textContent=e.message
-  }finally{$('importExcel').value=''}
-}
+   </div>
 
-function mergeRecordMaps(localMap={},cloudMap={}){
-  const merged={...localMap};
-  for(const [date,cloudRecord] of Object.entries(cloudMap||{})){
-    const localRecord=merged[date];
-    if(!localRecord){merged[date]=cloudRecord;continue}
-    const lt=Date.parse(localRecord.updatedAt||0)||0;
-    const ct=Date.parse(cloudRecord.updatedAt||0)||0;
-    if(ct>=lt)merged[date]=cloudRecord
-  }
-  return merged
+   <div><label>状態</label>
+    <select id=mtStatus>
+     ${[
+       ['confirmed','確定'],
+       ['provisional','仮予定'],
+       ['pending','ペンディング'],
+       ['unassigned','未割当']
+     ].map(([v,l])=>`<option value="${v}" ${v===t0.status?'selected':''}>${l}</option>`).join('')}
+    </select>
+   </div>
+
+   <div class=urgentbox>
+    <input id=mtUrgent type=checkbox ${t0.urgent?'checked':''}> 🔴 緊急対応
+   </div>
+  </div>
+
+  ${edit?`<div class=history>
+    <b>変更履歴</b>
+    ${(t0.history||[]).slice().reverse().map(h=>`<div class=history-item>${h.at||''}　${h.text}</div>`).join('')||'<div class=history-item>履歴なし</div>'}
+  </div>`:''}
+ `,()=>{
+   const n={
+     ...t0,
+     id:$('mtId').value,
+     date:$('mtDate').value,
+     name:$('mtName').value.trim()||'未記入',
+     category:$('mtCategory').value,
+     type:$('mtCategory').value,
+     projectId:$('mtProject').value,
+     employeeId:$('mtEmployee').value,
+     vehicleId:$('mtVehicle').value,
+     start:$('mtStart').value,
+     end:$('mtEnd').value,
+     status:$('mtStatus').value,
+     urgent:$('mtUrgent').checked,
+     passengerIds:[...$('modalBody').querySelectorAll('[data-helper]:checked')].map(x=>x.dataset.helper)
+   };
+
+   if(timeNum(n.end)<=timeNum(n.start))return alert('終了時刻を確認してください');
+
+   if(edit){
+     n.history=[...(t0.history||[]),{
+       at:new Date().toLocaleString('ja-JP'),
+       text:'タスク内容を編集'
+     }];
+     const idx=db.tasks.findIndex(x=>x.id===t.id);
+     if(idx>=0)db.tasks[idx]=n;
+   }else{
+     db.tasks.push(n);
+   }
+
+   currentDay=n.date;
+   save();
+   closeModal();
+   renderAll();
+   showView('day');
+ });
+
+ document.querySelectorAll('[data-kind]').forEach(b=>b.onclick=()=>{
+   $('mtCategory').value=b.dataset.kind;
+   document.querySelectorAll('[data-kind]').forEach(x=>x.classList.toggle('active',x===b));
+ });
+
+ if(edit){
+   const foot=$('modal').querySelector('.modalfoot');
+   const row=document.createElement('div');
+   row.className='task-action-row';
+   row.innerHTML=`
+    <button type=button id=postponeBtn class=postpone>日延べ</button>
+    <button type=button id=pendingBtn class=pending2>ペンディング</button>
+    <button type=button id=deleteTaskBtn class=danger2>削除</button>
+   `;
+   foot.prepend(row);
+
+   $('postponeBtn').onclick=()=>postponeTask(t);
+
+   $('pendingBtn').onclick=()=>{
+     const x=db.tasks.find(a=>a.id===t.id);
+     if(!x)return;
+     x.status='pending';
+     x.history=[...(x.history||[]),{
+       at:new Date().toLocaleString('ja-JP'),
+       text:'ペンディングへ変更'
+     }];
+     save();
+     closeModal();
+     renderAll();
+     showView('day');
+   };
+
+   $('deleteTaskBtn').onclick=()=>{
+     if(!confirm(`タスク ${t.id}「${t.name}」を削除しますか？\n\n誤入力・重複登録など、本当に存在しなかったタスク向けです。`))return;
+     db.tasks=db.tasks.filter(a=>a.id!==t.id);
+     save();
+     closeModal();
+     renderAll();
+     showView('day');
+   };
+ }
 }
-function applyCloudState(cloud){
-  if(!cloud||typeof cloud!=='object')return;
-  applyingCloudState=true;
-  try{
-    state={
-      version:8,
-      settings:{...defaults.settings,...(cloud.settings||state.settings||{})},
-      records:mergeRecordMaps(state.records||{},cloud.records||{}),
-      calendar:{...(state.calendar||{}),...(cloud.calendar||{})},
-      holidayHistory:Array.isArray(cloud.holidayHistory)?cloud.holidayHistory:(state.holidayHistory||[])
-    };
-    const store=employeeStore();store[activeEmployeeId]=state;localStorage.setItem(EMP_STORE_KEY,JSON.stringify(store));
-    if(activeEmployeeId==='EMP-004')localStorage.setItem(KEY,JSON.stringify(state));
-    renderAll();
-    loadTodayForm()
-  }finally{
-    applyingCloudState=false
-  }
-}
-window.addEventListener('attendance-cloud-state',e=>applyCloudState(e.detail));
-window.addEventListener('attendance-cloud-status',e=>{
-  const s=e.detail||{};
-  const status=$('cloudStatus'),user=$('cloudUser'),last=$('cloudLastSync'),head=$('cloudHeaderStatus'),msg=$('cloudMessage');
-  if(status)status.textContent=s.label||'未設定';
-  if(user)user.textContent=s.user||'未ログイン';
-  if(last)last.textContent=s.lastSync||'―';
-  if(msg)msg.textContent=s.message||'';
-  if(head){
-    head.textContent=s.shortLabel||s.label||'ローカル';
-    head.className='cloud-header-status '+(s.state||'offline')
-  }
-  const signed=Boolean(s.signedIn);
-  if($('googleLoginForm'))$('googleLoginForm').hidden=signed;
-  if($('cloudSignOut'))$('cloudSignOut').hidden=!signed;
-  if($('cloudPush'))$('cloudPush').hidden=!signed;
-  if($('cloudPull'))$('cloudPull').hidden=!signed
-});
-
-function requestCloudStatus(){
-  window.dispatchEvent(new Event('attendance-cloud-request-status'))
-}
-window.addEventListener('attendance-cloud-ready',requestCloudStatus);
-window.addEventListener('attendance-cloud-diagnostics',e=>{
-  const box=$('cloudDiagnostics');
-  if(!box)return;
-  box.hidden=false;
-  box.textContent=JSON.stringify(e.detail||{},null,2)
-});
-
-function switchEmployee(employeeId){
-  if(!EMPLOYEES.some(e=>e.id===employeeId))return;
-  // 現在社員を保存してから切替
-  persist();
-  activeEmployeeId=employeeId;
-  localStorage.setItem(ACTIVE_EMP_KEY,activeEmployeeId);
-  state=load();
-  const sel=$('employeeSwitcher');if(sel)sel.value=activeEmployeeId;
-  renderAll();loadTodayForm();
-  window.dispatchEvent(new CustomEvent('attendance-employee-change',{detail:{employeeId:activeEmployeeId,state}}));
-  window.dispatchEvent(new Event('attendance-cloud-reconnect'));
-}
-
-function setup(){const employeeSwitcher=$('employeeSwitcher');if(employeeSwitcher){employeeSwitcher.value=activeEmployeeId;employeeSwitcher.onchange=()=>switchEmployee(employeeSwitcher.value)}
-document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab,.view').forEach(x=>x.classList.remove('active'));b.classList.add('active');$('view-'+b.dataset.view).classList.add('active');if(b.dataset.view==='ledger')renderLedger();if(b.dataset.view==='overview')renderOverview()});document.querySelectorAll('.now').forEach(b=>b.onclick=e=>{e.preventDefault();$(b.dataset.target).value=hm();previewToday()});['workType','start','end','out','back'].forEach(id=>$(id).addEventListener('input',previewToday));['fiscalYear','fiscalStartMonth','fiscalStartDay','cutoffDay'].forEach(id=>$(id).addEventListener('input',renderPeriodPreview));$('saveToday').onclick=saveToday;$('saveAllLedger').onclick=()=>{let ok=0;document.querySelectorAll('[data-ledger-entry].dirty').forEach(entry=>{if(saveLedgerRow(entry))ok++});$('ledgerSaveMessage').textContent=ok?`${ok}件を保存しました。`:'変更された行はありません。'};$('reloadLedger').onclick=renderLedger;$('calendarMonth').onchange=renderCalendar;
-$('overviewPeriod').onchange=renderOverview;$('prevOverviewPeriod').onclick=()=>{const i=Math.max(0,(+$('overviewPeriod').value||0)-1);$('overviewPeriod').value=String(i);renderOverview()};$('nextOverviewPeriod').onclick=()=>{const i=Math.min(11,(+$('overviewPeriod').value||0)+1);$('overviewPeriod').value=String(i);renderOverview()};$('saveDayEdit').onclick=e=>{e.preventDefault();saveOverviewDay()};$('deleteDayEdit').onclick=deleteOverviewDay;['dayEditType','dayEditStart','dayEditEnd','dayEditOut','dayEditBack'].forEach(id=>$(id).addEventListener('input',()=>{const r={type:$('dayEditType').value,start:$('dayEditStart').value,end:$('dayEditEnd').value,out:$('dayEditOut').value,back:$('dayEditBack').value,note:$('dayEditNote').value},old=state.records[editDate];state.records[editDate]=r;const c=calcRecord(editDate,r),o=weeklyOvertimeMap()[editDate]?.overtime||0;if(old)state.records[editDate]=old;else delete state.records[editDate];$('dayEditCalc').innerHTML=`<div><span>就労</span><strong>${hoursToClock(c.work)}</strong></div><div><span>時間外</span><strong>${hoursToClock(o)}</strong></div><div><span>法定休日</span><strong>${hoursToClock(c.statutoryHolidayWork)}</strong></div><div><span>代休</span><strong>${c.compEarn?'+1日':'―'}</strong></div>`}));$('ledgerPeriod').onchange=renderLedger;
-$('prevLedgerPeriod').onclick=()=>{const i=Math.max(0,(+$('ledgerPeriod').value||0)-1);$('ledgerPeriod').value=String(i);renderLedger()};
-$('nextLedgerPeriod').onclick=()=>{const i=Math.min(11,(+$('ledgerPeriod').value||0)+1);$('ledgerPeriod').value=String(i);renderLedger()};$('saveHoliday').onclick=()=>{const before=holidayFor(dialogDate),after={type:$('holidayType').value,name:$('holidayName').value};if(before.type!==after.type||before.name!==after.name){state.holidayHistory=state.holidayHistory||[];state.holidayHistory.push({date:dialogDate,from:before.type,to:after.type,reason:$('holidayReason').value||'',changedAt:new Date().toISOString()})}state.calendar[dialogDate]=after;persist();renderAll()};$('saveSettings').onclick=saveSettings;
-
-$('cloudGoogleSignIn').onclick=()=>window.dispatchEvent(new Event('attendance-cloud-google-signin'));
-$('cloudSignOut').onclick=()=>window.dispatchEvent(new Event('attendance-cloud-signout'));
-$('cloudPush').onclick=()=>window.dispatchEvent(new CustomEvent('attendance-cloud-push',{detail:structuredClone(state)}));
-$('cloudPull').onclick=()=>window.dispatchEvent(new Event('attendance-cloud-pull'));
-$('cloudDiagnose').onclick=()=>window.dispatchEvent(new Event('attendance-cloud-diagnose'));$('loginButton').onclick=login;$('logoutButton').onclick=logout;$('loginPassword').onkeydown=e=>{if(e.key==='Enter')login()};$('confirmPassword').onkeydown=e=>{if(e.key==='Enter')login()};$('exportJson').onclick=()=>download('attendance-backup.json',JSON.stringify(state,null,2),'application/json');$('importJson').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{const x=JSON.parse(r.result);state={version:8,settings:{...defaults.settings,...(x.settings||{})},records:x.records||{},calendar:x.calendar||{},holidayHistory:Array.isArray(x.holidayHistory)?x.holidayHistory:[]};persist();renderAll();loadTodayForm();alert('復元しました')};r.readAsText(f)};$('exportCsv').onclick=exportCsv;$('importExcel').onchange=e=>{const f=e.target.files[0];if(f)importWorkbook(f)};$('resetData').onclick=()=>{if(confirm('全データを削除しますか？')){state=structuredClone(defaults);persist();renderAll();loadTodayForm()}};window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;$('installBtn').hidden=false});$('installBtn').onclick=async()=>{if(deferredPrompt){deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;$('installBtn').hidden=true}};let lastMobile=isMobileLedger();
-window.addEventListener('resize',()=>{const now=isMobileLedger();if(now!==lastMobile){lastMobile=now;const ledgerView=$('view-ledger');if(ledgerView&&ledgerView.classList.contains('active'))renderLedger()}});
-if(sessionValid()){$('lockScreen').hidden=true;renderAll();loadTodayForm()}else showLock();requestCloudStatus()}
-setup();
-
-window.HokuyouAttendanceEmployee=()=>activeEmployeeId;
-window.HokuyouAttendanceEmployeeStore=()=>employeeStore();
+function postponeTask(t){const urg=db.tasks.filter(x=>x.urgent&&x.id!==t.id);openModal('タスクを日延べ',`<div class=form><div><label>現在日</label><input value="${t.date}" disabled></div><div><label>移動先</label><input id=ppDate type=date value="${addDays(t.date,1)}"></div><div><label>理由</label><select id=ppReason><option>通常変更</option><option>客先都合</option><option>社内都合</option><option>前工程遅延</option><option>緊急対応による押出し</option></select></div><div><label>原因となった緊急タスク</label><select id=ppEmergency><option value="">-</option>${urg.map(x=>`<option value="${x.id}">${x.date} ${x.id} ${x.name}</option>`).join('')}</select></div></div>`,()=>{const x=db.tasks.find(a=>a.id===t.id),old=x.date,n=$('ppDate').value;if(!n)return;x.date=n;x.history=[...(x.history||[]),{at:new Date().toLocaleString('ja-JP'),text:`日延べ ${old} → ${n} / ${$('ppReason').value}${$('ppEmergency').value?' / 原因 '+$('ppEmergency').value:''}`}];x.postponeReason=$('ppReason').value;x.causedByEmergencyId=$('ppEmergency').value||'';save();currentDay=n;closeModal();renderAll();showView('day')})}
+function renderDay(){
+ const ts=db.tasks.filter(t=>t.date===currentDay),hs=db.holidays.filter(h=>h.date===currentDay),rd=rangeDef(),span=rd.e-rd.s;let rows=`<div class="grow head"><div class=who>氏名 / 車両</div><div class=track>${timeBands(rd.s,rd.e)}${rd.h.map(h=>`<div class=hour>${h}</div>`).join('')}</div></div>`;
+ activeEmployees().forEach(e=>{const a=db.attendance.find(x=>x.employeeId===e.id&&x.date===currentDay);let bars='';if(a&&a.type!=='出勤')bars+=`<div class="bar leave" style="left:0;width:100%">${a.type}</div>`;const my=ts.filter(t=>t.employeeId===e.id||(t.passengerIds||[]).includes(e.id));my.forEach(t=>{let st=Math.max(timeNum(t.start),rd.s),en=Math.min(timeNum(t.end),rd.e);if(en<=rd.s||st>=rd.e)return;const l=(st-rd.s)/span*100,w=(en-st)/span*100,isHelp=(t.passengerIds||[]).includes(e.id);bars+=`<div class="bar ${taskClass(t)} ${t.urgent?'urgent':''} task-click" data-bar="${t.id}" style="left:${l}%;width:${w}%">${t.urgent?'🔴 ':''}${isHelp?'↳補助 ':''}${t.id} ${t.name}</div>`});const cars=[...new Set(my.filter(t=>t.vehicleId).map(t=>vehName(t.vehicleId)))].join(', ');const att=attendanceFor(e.id,currentDay);const attText=att?(att.type==='出勤'?`勤怠 ${att.work||0}h${att.overtime?` / 残業 ${att.overtime}h`:''}`:`${att.type}`):'勤怠未入力';
+ rows+=`<div class=grow><div class=who><div class=ename>${e.name}</div><div class=car>${cars||'車両 -'}</div><div class=small>${attText}</div></div><div class=track>${timeBands(rd.s,rd.e)}${bars}</div></div>`});
+ const urg=ts.filter(t=>t.urgent);$('day').innerHTML=`<div class=panel><div class=daynav><button id=dPrev class=ghost>←前日</button><div class=datebox>${dateLabel(currentDay)}</div><button id=dNext class=ghost>翌日→</button></div>${hs.map(h=>`<div class="banner ${h.type==='statutory'?'stat':'company'}">${h.name}</div>`).join('')}${urg.length?`<div class=banner style="background:#fff1f2;color:#991b1b">🔴 緊急 ${urg.length}件：${urg.map(x=>`${x.id} ${x.name}`).join(' / ')}</div>`:''}<div class=timelegend><span class=l-deep>深夜 0–5 / 22–24</span><span class=l-early>早朝 5–8:30</span><span class=l-normal>基準 8:30–17:30</span><span class=l-night>夜間 17:30–22</span></div><div class=toolbar><div class=seg><button data-range=all class="${dayRange==='all'?'active':''}">終日 0–24</button><button data-range=am class="${dayRange==='am'?'active':''}">午前 0–12</button><button data-range=pm class="${dayRange==='pm'?'active':''}">午後 12–24</button></div><div class=actions><button id=openAttendance class=ghost>この日の勤怠</button><button id=addTask class=primary>＋タスク</button></div></div><div class="day-gantt" data-range="${dayRange}"><div class=gantt-inner>${rows}</div></div><p class=small>補助欄の社員にも同じ時間バーを自動反映。赤枠＝緊急。</p></div><div class=panel><h3>この日のタスク</h3><div class=tablewrap><table><tr><th>ID</th><th>時間</th><th>区分</th><th>内容</th><th>案件</th><th>担当</th><th>補助</th><th>状態</th><th></th></tr>${ts.map(t=>`<tr><td>${t.urgent?'<span class=urgent-badge>緊急</span><br>':''}${t.id}</td><td>${t.start}-${t.end}</td><td>${t.category||t.type}</td><td>${t.name}</td><td>${projectLabel(t.projectId)}</td><td>${empName(t.employeeId)}</td><td>${(t.passengerIds||[]).map(empName).join('、')||'-'}</td><td><span class="badge ${statusBadge(t.status)} ${t.status}">${t.status==='pending'?'ペンディング':statusText(t.status)}</span></td><td><button class=ghost data-te="${t.id}">編集</button> <button class=danger data-td="${t.id}">削除</button></td></tr>`).join('')}</table></div></div>`;$('dPrev').onclick=()=>{currentDay=addDays(currentDay,-1);syncMonthToDay();renderDay()};
+ $('dNext').onclick=()=>{currentDay=addDays(currentDay,1);syncMonthToDay();renderDay()};
+ $('openAttendance').onclick=()=>{renderAttendance();showView('attendance')};
+ $('addTask').onclick=()=>taskModal(null);document.querySelectorAll('[data-range]').forEach(b=>b.onclick=()=>{dayRange=b.dataset.range;renderDay()});document.querySelectorAll('[data-te],[data-bar]').forEach(b=>b.onclick=()=>taskModal(db.tasks.find(t=>t.id===(b.dataset.te||b.dataset.bar))));
+ document.querySelectorAll('[data-td]').forEach(b=>b.onclick=()=>{
+   const t=db.tasks.find(x=>x.id===b.dataset.td);
+   if(!t)return;
+   if(!confirm(`タスク ${t.id}「${t.name}」を削除しますか？`))return;
+   db.tasks=db.tasks.filter(x=>x.id!==t.id);
+   save();renderAll();showView('day');
+ })}
+function renderAttendance(){const daily=db.attendance.filter(a=>a.date===currentDay);$('attendance').innerHTML=`<div class="banner info">実機テスト用：予定と同じ社員ID・日付・会社カレンダーを使う勤怠画面。ここで入れた休暇は日フォーカスにも反映されます。</div><div class=panel><div class=daynav><button id=aPrev class=ghost>←前日</button><div class=datebox>${dateLabel(currentDay)}</div><button id=aNext class=ghost>翌日→</button></div><p><button id=backToDay class=ghost>← この日の予定</button> <button id=aAdd class=primary>＋勤怠追加</button></p><div class=tablewrap><table><tr><th>社員</th><th>区分</th><th>就労</th><th>時間外</th><th></th></tr>${daily.map(a=>`<tr><td>${empName(a.employeeId)}</td><td>${a.type}</td><td>${a.work}h</td><td>${a.overtime}h</td><td><button class=ghost data-ae="${a.employeeId}">編集</button></td></tr>`).join('')}</table></div></div><div class=panel><h3>年間サマリー</h3><div class=tablewrap><table><tr><th>社員</th><th>休日</th><th>有休</th><th>年間就労</th><th>時間外</th><th>36協定</th></tr>${db.attendanceSummary.map(x=>`<tr><td>${empName(x.employeeId)}</td><td>${x.holidaysTaken}/${x.annualHolidays}</td><td>${x.paidLeaveTaken}</td><td>${x.annualWork}h</td><td>${x.overtime}h</td><td>${x.agreementPct}%</td></tr>`).join('')}</table></div></div>`;$('aPrev').onclick=()=>{currentDay=addDays(currentDay,-1);syncMonthToDay();renderAttendance()};
+ $('aNext').onclick=()=>{currentDay=addDays(currentDay,1);syncMonthToDay();renderAttendance()};
+ $('backToDay').onclick=()=>{renderDay();showView('day')};
+ $('aAdd').onclick=()=>attendanceModal(null);document.querySelectorAll('[data-ae]').forEach(b=>b.onclick=()=>attendanceModal(daily.find(a=>a.employeeId===b.dataset.ae)))}
+function masterModal(type,x){const edit=!!x;if(type==='employees'){const r=x||{id:'EMP-'+String(db.employees.length+1).padStart(3,'0'),name:'',role:'社員',active:true,attendance:true,start:'08:00',end:'17:00',order:db.employees.length+1};openModal(edit?'社員編集':'社員追加',`<div class=form><div><label>社員ID</label><input id=mmId value="${r.id}"></div><div><label>氏名</label><input id=mmName value="${r.name}"></div><div><label>役職</label><input id=mmRole value="${r.role}"></div><div><label>表示順</label><input id=mmOrder type=number value="${r.order}"></div><div><label>標準開始</label><input id=mmStart type=time value="${r.start}"></div><div><label>標準終了</label><input id=mmEnd type=time value="${r.end}"></div></div>`,()=>{const n={...r,id:$('mmId').value.trim(),name:$('mmName').value.trim(),role:$('mmRole').value.trim(),order:+$('mmOrder').value||99,start:$('mmStart').value,end:$('mmEnd').value};if(edit){const old=r.id;db.employees[db.employees.findIndex(a=>a.id===old)]=n;db.tasks.forEach(t=>{if(t.employeeId===old)t.employeeId=n.id});db.projects.forEach(p=>{if(p.ownerId===old)p.ownerId=n.id})}else db.employees.push(n);save();closeModal();renderAll();showView('masters')})}else if(type==='vehicles'){const r=x||{id:'CAR-'+String(db.vehicles.length+1).padStart(3,'0'),name:'',type:'',number:'',active:true,note:''};openModal(edit?'車両編集':'車両追加',`<div class=form><div><label>車両ID</label><input id=mmId value="${r.id}"></div><div><label>呼称</label><input id=mmName value="${r.name}"></div><div><label>車種</label><input id=mmType value="${r.type}"></div><div><label>ナンバー</label><input id=mmNumber value="${r.number}"></div><div><label>備考</label><textarea id=mmNote>${r.note||''}</textarea></div></div>`,()=>{const n={...r,id:$('mmId').value.trim(),name:$('mmName').value.trim(),type:$('mmType').value.trim(),number:$('mmNumber').value.trim(),note:$('mmNote').value.trim()};if(edit){const old=r.id;db.vehicles[db.vehicles.findIndex(a=>a.id===old)]=n;db.tasks.forEach(t=>{if(t.vehicleId===old)t.vehicleId=n.id})}else db.vehicles.push(n);save();closeModal();renderAll();showView('masters')})}else{const r=x||{id:'CUS-'+String(db.customers.length+1).padStart(3,'0'),name:'',short:'',address:'',contact:'',phone:'',active:true};openModal(edit?'顧客編集':'顧客追加',`<div class=form><div><label>顧客ID</label><input id=mmId value="${r.id}"></div><div><label>会社名</label><input id=mmName value="${r.name}"></div><div><label>略称</label><input id=mmShort value="${r.short}"></div><div><label>所在地</label><input id=mmAddress value="${r.address}"></div><div><label>担当者</label><input id=mmContact value="${r.contact}"></div><div><label>電話</label><input id=mmPhone value="${r.phone||''}"></div></div>`,()=>{const n={...r,id:$('mmId').value.trim(),name:$('mmName').value.trim(),short:$('mmShort').value.trim(),address:$('mmAddress').value.trim(),contact:$('mmContact').value.trim(),phone:$('mmPhone').value.trim()};if(edit){const old=r.id;db.customers[db.customers.findIndex(a=>a.id===old)]=n;db.projects.forEach(p=>{if(p.customerId===old)p.customerId=n.id})}else db.customers.push(n);save();closeModal();renderAll();showView('masters')})}}
+function renderMasters(){const list=masterType==='employees'?db.employees:masterType==='vehicles'?db.vehicles:db.customers;$('masters').innerHTML=`<div class=panel><div class=master-tabs><button class="master-tab ${masterType==='employees'?'active':''}" data-mt=employees>社員</button><button class="master-tab ${masterType==='vehicles'?'active':''}" data-mt=vehicles>車両</button><button class="master-tab ${masterType==='customers'?'active':''}" data-mt=customers>顧客</button></div><div class=daynav><h3>${masterType==='employees'?'社員':masterType==='vehicles'?'車両':'顧客'}マスタ</h3><button id=mAdd class=primary>＋追加</button></div>${list.map(x=>`<div class=master-card><h4>${x.id} ${x.name} ${x.active?'':'[無効]'}</h4><div class=small>${masterType==='employees'?`${x.role} / ${x.start}-${x.end}`:masterType==='vehicles'?`${x.type} / ${x.number}`:`${x.short} / ${x.address} / ${x.contact}`}</div><div class=actions><button class=ghost data-me="${x.id}">編集</button><button class=ghost data-ma="${x.id}">${x.active?'無効化':'有効化'}</button></div></div>`).join('')}</div>`;document.querySelectorAll('[data-mt]').forEach(b=>b.onclick=()=>{masterType=b.dataset.mt;renderMasters()});$('mAdd').onclick=()=>masterModal(masterType,null);document.querySelectorAll('[data-me]').forEach(b=>b.onclick=()=>masterModal(masterType,(masterType==='employees'?emp:masterType==='vehicles'?veh:cust)(b.dataset.me)));document.querySelectorAll('[data-ma]').forEach(b=>b.onclick=()=>{const x=(masterType==='employees'?emp:masterType==='vehicles'?veh:cust)(b.dataset.ma);x.active=!x.active;save();renderAll();showView('masters')})}
+function holidayModal(h){const r=h||{id:'H'+Date.now(),date:currentDay,type:'statutory',name:'法定休日'};openModal(h?'休日編集':'休日追加',`<div class=form><div><label>日付</label><input id=mhDate type=date value="${r.date}"></div><div><label>区分</label><select id=mhType><option value=statutory ${r.type==='statutory'?'selected':''}>法定休日</option><option value=company ${r.type==='company'?'selected':''}>所定休日</option></select></div><div><label>名称</label><input id=mhName value="${r.name}"></div></div>`,()=>{const n={id:r.id,date:$('mhDate').value,type:$('mhType').value,name:$('mhName').value.trim()||'休日'};if(h)db.holidays[db.holidays.findIndex(x=>x.id===h.id)]=n;else db.holidays.push(n);save();closeModal();renderAll();showView('holidays')})}
+function renderHolidays(){$('holidays').innerHTML=`<div class=panel><div class=daynav><h3>会社カレンダー</h3><button id=hAdd class=primary>＋休日追加</button></div><div class=tablewrap><table><tr><th>日付</th><th>区分</th><th>名称</th><th></th></tr>${db.holidays.sort((a,b)=>a.date.localeCompare(b.date)).map(h=>`<tr><td>${h.date}</td><td>${h.type==='statutory'?'法定休日':'所定休日'}</td><td>${h.name}</td><td><button class=ghost data-he="${h.id}">編集</button> <button class=ghost data-hd="${h.id}">削除</button></td></tr>`).join('')}</table></div></div>`;$('hAdd').onclick=()=>holidayModal(null);document.querySelectorAll('[data-he]').forEach(b=>b.onclick=()=>holidayModal(db.holidays.find(h=>h.id===b.dataset.he)));document.querySelectorAll('[data-hd]').forEach(b=>b.onclick=()=>{db.holidays=db.holidays.filter(h=>h.id!==b.dataset.hd);save();renderAll();showView('holidays')})}
+function renderBackup(){$('backup').innerHTML=`<div class=grid2><div class=panel><h3>バックアップ</h3><p><button id=exportBtn class=primary>JSONを書き出す</button></p></div><div class=panel><h3>復元</h3><input id=importFile class=fileinput type=file accept=".json,application/json"><p><button id=importBtn class=primary>復元</button></p></div></div>`;$('exportBtn').onclick=()=>{const blob=new Blob([JSON.stringify(db,null,2)],{type:'application/json'}),u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download='company_portal_backup_'+new Date().toISOString().slice(0,10)+'.json';a.click();URL.revokeObjectURL(u)};$('importBtn').onclick=()=>{const f=$('importFile').files[0];if(!f)return alert('ファイルを選択');const r=new FileReader();r.onload=()=>{try{const x=JSON.parse(r.result);if(confirm('現在のデータを上書きしますか？')){db=x;save();renderAll();showView('dashboard')}}catch(e){alert('読込失敗')}};r.readAsText(f)}}
+function renderAll(){renderSummary();renderDashboard();renderProjects();renderYear();renderQuarter();renderMonth();renderDay();renderAttendance();renderMasters();renderHolidays();renderBackup()}
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>showView(b.dataset.view));$('resetBtn').onclick=()=>{if(confirm('初期データへ戻しますか？')){localStorage.removeItem(KEY);db=JSON.parse(JSON.stringify(seed));db.tasks.forEach(t=>{t.passengerIds=[];t.travelKind='';t.category=(['設計','見積','社内製作','段取り','整備'].includes(t.type)?'社内案件':'客先案件');t.urgent=false;t.history=[]});save();renderAll();showView('dashboard')}};renderAll();
