@@ -19,7 +19,7 @@ import {
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
 
-const VERSION = "7.1";
+const VERSION = "8.0";
 const CONFIG = window.FIREBASE_CONFIG || {};
 const LOCAL_KEYS = ["attendancePwaV6", "attendancePwaV5", "attendancePwaV4"];
 
@@ -83,10 +83,11 @@ function stateRef() {
 
 function normalizeState(value = {}) {
   return {
-    version: 7.1,
+    version: 8,
     settings: value.settings || {},
     records: value.records || {},
     calendar: value.calendar || {},
+    holidayHistory: Array.isArray(value.holidayHistory) ? value.holidayHistory : [],
     clientUpdatedAt: value.clientUpdatedAt || nowIso()
   };
 }
@@ -115,10 +116,11 @@ function mergeRecords(localRecords = {}, cloudRecords = {}) {
 
 function mergeStates(local = {}, cloud = {}) {
   return {
-    version: 7.1,
+    version: 8,
     settings: { ...(local.settings || {}), ...(cloud.settings || {}) },
     records: mergeRecords(local.records || {}, cloud.records || {}),
     calendar: { ...(local.calendar || {}), ...(cloud.calendar || {}) },
+    holidayHistory: Array.isArray(cloud.holidayHistory) && cloud.holidayHistory.length ? cloud.holidayHistory : (local.holidayHistory || []),
     clientUpdatedAt: nowIso()
   };
 }
