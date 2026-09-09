@@ -38,13 +38,87 @@ function periodForDate(d){return buildPeriods().find(p=>d>=p.start&&d<=p.end)||n
 function allKeys(){const[a,b]=fiscalBounds(),arr=[];for(let d=new Date(a);d<=b;d.setDate(d.getDate()+1))arr.push(iso(d));return arr}
 function defaultHoliday(d){if(d.getDay()===0)return{type:'法定休日',name:''};if(d.getDay()===6)return{type:'所定休日',name:''};return{type:'勤務日',name:''}}
 function holidayFor(k){return state.calendar[k]||defaultHoliday(parseIso(k))}
-function calcRecord(k,r={}){const s=state.settings,rs=roundTime(r.start,s.roundMinutes,s.roundStart),re=roundTime(r.end,s.roundMinutes,s.roundEnd),isWork=['出勤','休日出勤'].includes(r.type),extra=(r.end&&r.start&&(mins(r.end)<mins(r.start)||mins(r.end)>=mins(s.extraBreakAfter)))?+s.extraBreak:0,br=isWork?(+s.baseBreak+extra):0,outside=duration(r.out,r.back),work=Math.max(0,duration(rs,re)-br-outside),standard=r.type==='出勤'?+s.standardHours:0,overtime=Math.max(0,work-standard);let early=overlap(rs,re,s.earlyStart,s.normalStart),evening=overlap(rs,re,s.normalEnd,s.nightStart),night=overlap(rs,re,s.nightStart,s.earlyStart);if(r.out&&r.back){early=Math.max(0,early-overlap(r.out,r.back,s.earlyStart,s.normalStart));evening=Math.max(0,evening-overlap(r.out,r.back,s.normalEnd,s.nightStart));night=Math.max(0,night-overlap(r.out,r.back,s.nightStart,s.earlyStart))}const hol=holidayFor(k),holidayWork=isWork&&hol.type!=='勤務日'?work:0,compEarn=r.type==='休日出勤'&&holidayWork>0?1:0,compUse=r.type==='代休'?1:0;return{rs,re,breakHours:br,outside,work,standard,overtime,early,evening,night,holidayWork,compEarn,compUse,hol}}
-function stats(){let comp=0,yearOt=0,holidayWorkDays=0,planned=0;const months=buildPeriods().map(p=>({label:p.label,range:p.range,work:0,ot:0,holidayWork:0,comp:0}));for(const k of allKeys()){const c=calcRecord(k,state.records[k]||{});if(c.hol.type!=='勤務日')planned++;comp+=c.compEarn-c.compUse;yearOt+=c.overtime;if(c.compEarn)holidayWorkDays++;const p=periodForDate(parseIso(k));if(p){const m=months[p.index];m.work+=c.work;m.ot+=c.overtime;m.holidayWork+=c.compEarn;m.comp=comp}}const used=Object.values(state.records).filter(r=>r.type==='代休').length;return{comp,yearOt,holidayWorkDays,planned,actualHoliday:planned-holidayWorkDays+used,months}}
+function calcRecord(k,r={}){
+  const s=state.settings;
+  const rs=roundTime(r.start,s.roundMinutes,s.roundStart);
+  const re=roundTime(r.end,s.roundMinutes,s.roundEnd);
+  const isWork=['出勤','休日出勤'].includes(r.type);
+  const extra=(r.end&&r.start&&(mins(r.end)<mins(r.start)||mins(r.end)>=mins(s.extraBreakAfter)))?+s.extraBreak:0;
+  const br=isWork?(+s.baseBreak+extra):0;
+  const outside=duration(r.out,r.back);
+  const work=Math.max(0,duration(rs,re)-br-outside);
+  let early=overlap(rs,re,s.earlyStart,s.normalStart);
+  let evening=overlap(rs,re,s.normalEnd,s.nightStart);
+  let night=overlap(rs,re,s.nightStart,s.earlyStart);
+  if(r.out&&r.back){
+    early=Math.max(0,early-overlap(r.out,r.back,s.earlyStart,s.normalStart));
+    evening=Math.max(0,evening-overlap(r.out,r.back,s.normalEnd,s.nightStart));
+    night=Math.max(0,night-overlap(r.out,r.back,s.nightStart,s.earlyStart));
+  }
+  const hol=holidayFor(k);
+  const dailyOvertime=isWork&&hol.type!=='法定休日'?Math.max(0,work-(+s.standardHours||8)):0;
+  const scheduledHolidayWork=isWork&&hol.type==='所定休日'?work:0;
+  const statutoryHolidayWork=isWork&&hol.type==='法定休日'?work:0;
+  const compEarn=r.type==='休日出勤'&&hol.type!=='勤務日'&&work>0?1:0;
+  const compUse=r.type==='代休'?1:0;
+  return{rs,re,breakHours:br,outside,work,early,evening,night,hol,dailyOvertime,scheduledHolidayWork,statutoryHolidayWork,compEarn,compUse};
+}
+function startOfWeekMonday(d){const x=new Date(d),day=x.getDay(),diff=day===0?-6:1-day;x.setDate(x.getDate()+diff);x.setHours(0,0,0,0);return x}
+function weeklyOvertimeMap(){
+  const s=state.settings,result={},weeks=new Map();
+  for(const k of allKeys()){const wk=iso(startOfWeekMonday(parseIso(k)));if(!weeks.has(wk))weeks.set(wk,[]);weeks.get(wk).push(k)}
+  for(const weekKeys of weeks.values()){
+    weekKeys.sort();let cumulativeStandardPart=0;
+    for(const k of weekKeys){
+      const c=calcRecord(k,state.records[k]||{});
+      if(c.hol.type==='法定休日'||c.work<=0){result[k]={weeklyExtra:0,overtime:0,scheduledHolidayWork:c.scheduledHolidayWork,statutoryHolidayWork:c.statutoryHolidayWork};continue}
+      const standardPart=Math.min(c.work,+s.standardHours||8);
+      const before=cumulativeStandardPart,after=before+standardPart;
+      const weeklyExtra=Math.max(0,after-40)-Math.max(0,before-40);
+      cumulativeStandardPart=after;
+      result[k]={weeklyExtra,overtime:c.dailyOvertime+weeklyExtra,scheduledHolidayWork:c.scheduledHolidayWork,statutoryHolidayWork:c.statutoryHolidayWork};
+    }
+  }
+  return result
+}
+function stats(){
+  let comp=0,yearOt=0,holidayWorkDays=0,planned=0,statutoryHolidayHours=0;
+  const otMap=weeklyOvertimeMap();
+  const months=buildPeriods().map(p=>({label:p.label,range:p.range,work:0,ot:0,scheduledHolidayWorkDays:0,statutoryHolidayWork:0,comp:0}));
+  for(const k of allKeys()){
+    const c=calcRecord(k,state.records[k]||{}),ot=otMap[k]?.overtime||0;
+    if(c.hol.type!=='勤務日')planned++;
+    comp+=c.compEarn-c.compUse;yearOt+=ot;statutoryHolidayHours+=c.statutoryHolidayWork;if(c.compEarn)holidayWorkDays++;
+    const p=periodForDate(parseIso(k));if(p){const m=months[p.index];m.work+=c.work;m.ot+=ot;if(c.scheduledHolidayWork>0)m.scheduledHolidayWorkDays++;m.statutoryHolidayWork+=c.statutoryHolidayWork;m.comp=comp}
+  }
+  const used=Object.values(state.records).filter(r=>r.type==='代休').length;
+  return{comp,yearOt,holidayWorkDays,planned,actualHoliday:planned-holidayWorkDays+used,statutoryHolidayHours,months,otMap};
+}
 function formRecord(){return{type:$('workType').value,start:$('start').value,end:$('end').value,out:$('out').value,back:$('back').value,note:$('note').value}}
-function previewToday(){const c=calcRecord(iso(),formRecord());$('todayBreak').textContent=c.breakHours.toFixed(2)+'h';$('todayOutside').textContent=c.outside.toFixed(2)+'h';$('todayWork').textContent=c.work.toFixed(2)+'h';$('todayOt').textContent=c.overtime.toFixed(2)+'h';$('todayBands').textContent=`${c.early.toFixed(2)} / ${c.evening.toFixed(2)} / ${c.night.toFixed(2)}h`}
+function previewToday(){
+  const key=iso(),draft=formRecord(),before=state.records[key];
+  state.records[key]=draft;
+  const c=calcRecord(key,draft),ot=weeklyOvertimeMap()[key]?.overtime||0;
+  if(before)state.records[key]=before;else delete state.records[key];
+  $('todayBreak').textContent=c.breakHours.toFixed(2)+'h';
+  $('todayOutside').textContent=c.outside.toFixed(2)+'h';
+  $('todayWork').textContent=c.work.toFixed(2)+'h';
+  $('todayOt').textContent=ot.toFixed(2)+'h';
+  $('todayBands').textContent=`${c.early.toFixed(2)} / ${c.evening.toFixed(2)} / ${c.night.toFixed(2)}h`
+}
 function loadTodayForm(){const r=state.records[iso()]||{type:'出勤'};$('workType').value=r.type||'出勤';['start','end','out','back','note'].forEach(id=>$(id).value=r[id]||'');previewToday()}
 function renderTodayMetrics(){const st=stats(),p=periodForDate(new Date()),m=p?st.months[p.index]:{ot:0};$('todayLabel').textContent=new Intl.DateTimeFormat('ja-JP',{dateStyle:'full'}).format(new Date());$('metricComp').textContent=st.comp.toFixed(1)+'日';$('metricMonthOt').textContent=m.ot.toFixed(1)+'h';$('metricYearOt').textContent=st.yearOt.toFixed(1)+'h';$('todayPeriod').textContent=p?`${p.label}　${p.range}`:'本日は設定年度の範囲外です'}
-function renderDashboard(){const st=stats(),limit=+state.settings.yearOtLimit||360;$('dashComp').textContent=st.comp.toFixed(1)+'日';$('dashPlanned').textContent=st.planned+'日';$('dashHolidayWork').textContent=st.holidayWorkDays+'日';$('dashActualHoliday').textContent=st.actualHoliday+'日';$('yearOtBar').style.width=Math.min(100,st.yearOt/limit*100)+'%';$('yearOtText').textContent=`${st.yearOt.toFixed(1)} / ${limit} h（残り ${(limit-st.yearOt).toFixed(1)} h）`;$('monthRows').innerHTML=st.months.map(m=>`<tr><td>${m.label}<br><small>${m.range}</small></td><td>${m.work.toFixed(1)}</td><td>${m.ot.toFixed(1)}</td><td>${m.holidayWork}</td><td>${m.comp.toFixed(1)}</td></tr>`).join('')}
+function renderDashboard(){
+  const st=stats(),limit=+state.settings.yearOtLimit||360;
+  $('dashComp').textContent=st.comp.toFixed(1)+'日';
+  $('dashPlanned').textContent=st.planned+'日';
+  $('dashHolidayWork').textContent=st.months.reduce((a,m)=>a+m.scheduledHolidayWorkDays,0)+'日';
+  if($('dashStatutoryHolidayWork'))$('dashStatutoryHolidayWork').textContent=st.statutoryHolidayHours.toFixed(1)+'h';
+  $('dashActualHoliday').textContent=st.actualHoliday+'日';
+  $('yearOtBar').style.width=Math.min(100,st.yearOt/limit*100)+'%';
+  $('yearOtText').textContent=`時間外 ${st.yearOt.toFixed(1)} / ${limit} h（残り ${(limit-st.yearOt).toFixed(1)} h）／ 法定休日労働 ${st.statutoryHolidayHours.toFixed(1)} h`;
+  $('monthRows').innerHTML=st.months.map(m=>`<tr><td>${m.label}<br><small>${m.range}</small></td><td>${m.work.toFixed(1)}</td><td>${m.ot.toFixed(1)}</td><td>${m.scheduledHolidayWorkDays}</td><td>${m.statutoryHolidayWork.toFixed(1)}</td><td>${m.comp.toFixed(1)}</td></tr>`).join('')
+}
 function renderCalendar(){const val=$('calendarMonth').value||iso().slice(0,7);$('calendarMonth').value=val;const[y,m]=val.split('-').map(Number),first=new Date(y,m-1,1),start=new Date(y,m-1,1-first.getDay()),cells=[];for(let i=0;i<42;i++){const d=new Date(start);d.setDate(start.getDate()+i);const k=iso(d),h=holidayFor(k),cls=d.getMonth()!==m-1?'outside':h.type==='勤務日'?'work':'holiday';cells.push(`<button class="day ${cls}" data-date="${k}"><b>${d.getDate()}</b><small>${h.name||h.type}</small></button>`)}$('calendarGrid').innerHTML=cells.join('');document.querySelectorAll('.day').forEach(b=>b.onclick=()=>openHoliday(b.dataset.date))}
 function ledgerTypeOptions(selected){
   const options=['','出勤','休日出勤','公休','有休','代休','特休'];
@@ -55,17 +129,12 @@ function saveRecord(date,record){const clean={type:record.type||'',start:record.
 function isMobileLedger(){return window.matchMedia('(max-width:720px)').matches}
 function ledgerEntries(){return document.querySelectorAll('[data-ledger-entry][data-date]')}
 function updateLedgerCalculations(){
-  let comp=0;
+  let comp=0;const otMap=weeklyOvertimeMap();
   for(const k of allKeys()){
-    const c=calcRecord(k,state.records[k]||{});
-    comp+=c.compEarn-c.compUse;
+    const c=calcRecord(k,state.records[k]||{});comp+=c.compEarn-c.compUse;
     document.querySelectorAll(`[data-ledger-entry][data-date="${k}"]`).forEach(entry=>{
-      const work=entry.querySelector('[data-calc="work"]');
-      const ot=entry.querySelector('[data-calc="ot"]');
-      const compEl=entry.querySelector('[data-calc="comp"]');
-      if(work)work.textContent=c.work.toFixed(2);
-      if(ot)ot.textContent=c.overtime.toFixed(2);
-      if(compEl)compEl.textContent=comp.toFixed(1)
+      const work=entry.querySelector('[data-calc="work"]'),ot=entry.querySelector('[data-calc="ot"]'),compEl=entry.querySelector('[data-calc="comp"]');
+      if(work)work.textContent=c.work.toFixed(2);if(ot)ot.textContent=(otMap[k]?.overtime||0).toFixed(2);if(compEl)compEl.textContent=comp.toFixed(1)
     })
   }
 }
@@ -137,7 +206,7 @@ function desktopLedgerRow(k,d,r,c,comp){
     <td><input data-field="out" type="time" value="${escapeAttr(r.out||'')}"></td>
     <td><input data-field="back" type="time" value="${escapeAttr(r.back||'')}"></td>
     <td data-calc="work">${c.work.toFixed(2)}</td>
-    <td data-calc="ot">${c.overtime.toFixed(2)}</td>
+    <td data-calc="ot">${(weeklyOvertimeMap()[k]?.overtime||0).toFixed(2)}</td>
     <td data-calc="comp">${comp.toFixed(1)}</td>
     <td><input class="ledger-note" data-field="note" type="text" value="${escapeAttr(r.note||'')}"></td>
     <td><button type="button" class="save-ledger-row">保存</button><br><button type="button" class="clear-ledger-row">削除</button></td>`;
@@ -167,7 +236,7 @@ function mobileLedgerCard(k,d,r,c,comp){
     </div>
     <div class="ledger-card-metrics">
       <div class="ledger-card-metric"><span>就労</span><strong data-calc="work">${c.work.toFixed(2)}h</strong></div>
-      <div class="ledger-card-metric"><span>残業</span><strong data-calc="ot">${c.overtime.toFixed(2)}h</strong></div>
+      <div class="ledger-card-metric"><span>時間外</span><strong data-calc="ot">${(weeklyOvertimeMap()[k]?.overtime||0).toFixed(2)}h</strong></div>
       <div class="ledger-card-metric"><span>代休残</span><strong data-calc="comp">${comp.toFixed(1)}日</strong></div>
     </div>
     <div class="ledger-card-actions">
