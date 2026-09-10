@@ -7,8 +7,8 @@
   <meta name="description" content="締め日連動・過去編集・Excel取込対応の勤怠管理PWA">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=9.0-snapshot">
-  <title>勤怠管理 v9.0</title>
+  <link rel="stylesheet" href="styles.css?v=8.2.0">
+  <title>勤怠管理 v8.2</title>
 </head>
 <body>
   <section id="lockScreen" class="lock-screen">
@@ -24,17 +24,8 @@
   </section>
 
   <header class="app-header">
-    <div><h1>勤怠管理 <small class="version-badge">v9.0</small></h1><p id="todayLabel"></p></div>
+    <div><h1>勤怠管理 <small class="version-badge">v8.2</small></h1><p id="todayLabel"></p></div>
     <div class="header-actions">
-      <label class="employee-switcher">勤怠対象
-        <select id="employeeSwitcher" aria-label="勤怠対象社員">
-          <option value="EMP-001">EMP-001 社長</option>
-          <option value="EMP-002">EMP-002 専務</option>
-          <option value="EMP-003">EMP-003 山田</option>
-          <option value="EMP-004">EMP-004 佐藤</option>
-          <option value="EMP-005">EMP-005 鈴木</option>
-        </select>
-      </label>
       <span id="cloudHeaderStatus" class="cloud-header-status offline">ローカル</span>
       <button id="installBtn" class="ghost" hidden>追加</button>
       <button id="logoutButton" class="ghost">ログアウト</button>
@@ -49,7 +40,6 @@
       <button class="tab" data-view="calendar">休日</button>
       <button class="tab" data-view="ledger">編集</button>
       <button class="tab" data-view="settings">設定</button>
-      
     </nav>
 
     <section id="view-overview" class="view active">
@@ -132,7 +122,18 @@
         <article class="metric warning"><span>所定休日出勤</span><strong id="dashHolidayWork">0日</strong></article><article class="metric danger"><span>法定休日労働</span><strong id="dashStatutoryHolidayWork">0.0h</strong></article>
         <article class="metric success"><span>実質休日</span><strong id="dashActualHoliday">0日</strong></article>
       </div>
-      <article class="card"><h2>36協定進捗</h2><div class="progress"><div id="yearOtBar"></div></div><p id="yearOtText"></p></article>
+      <article class="card agreement-card">
+        <div class="section-head"><div><h2>36協定・上限監視</h2><small id="agreementModeLabel">通常運用</small></div><span id="agreementOverall" class="agreement-badge ok">余裕あり</span></div>
+        <div class="agreement-grid">
+          <div class="agreement-meter" id="agrMonth"><div class="agreement-meter-head"><span>今月の法定時間外</span><strong id="agrMonthValue">0 / 45h</strong></div><div class="progress"><div id="agrMonthBar"></div></div><small id="agrMonthNote"></small></div>
+          <div class="agreement-meter" id="agrYear"><div class="agreement-meter-head"><span>年の法定時間外</span><strong id="agrYearValue">0 / 360h</strong></div><div class="progress"><div id="agrYearBar"></div></div><small id="agrYearNote"></small></div>
+          <div class="agreement-meter" id="agrCombined"><div class="agreement-meter-head"><span>今月 時間外＋法定休日</span><strong id="agrCombinedValue">0 / 100h未満</strong></div><div class="progress"><div id="agrCombinedBar"></div></div><small id="agrCombinedNote"></small></div>
+          <div class="agreement-meter" id="agrAverage"><div class="agreement-meter-head"><span>2〜6か月平均</span><strong id="agrAverageValue">0 / 80h</strong></div><div class="progress"><div id="agrAverageBar"></div></div><small id="agrAverageNote"></small></div>
+          <div class="agreement-meter" id="agr45Months"><div class="agreement-meter-head"><span>45h超過月数</span><strong id="agr45MonthsValue">0 / 6回</strong></div><div class="progress"><div id="agr45MonthsBar"></div></div><small>時間外が45hを超えた月を年度内でカウント</small></div>
+          <div class="agreement-meter" id="agrSpecialYear"><div class="agreement-meter-head"><span>特別条項 年時間外</span><strong id="agrSpecialYearValue">0 / 720h</strong></div><div class="progress"><div id="agrSpecialYearBar"></div></div><small id="agrSpecialYearNote">特別条項ありの場合に監視</small></div>
+        </div>
+        <div class="agreement-summary" id="agreementSummary"></div>
+      </article>
       <article class="card"><h2>月次一覧</h2><div class="table-wrap"><table><thead><tr><th>月度・期間</th><th>就労</th><th>時間外</th><th>所定休日出勤</th><th>法定休日労働</th><th>代休残</th></tr></thead><tbody id="monthRows"></tbody></table></div></article>
     </section>
 
@@ -193,8 +194,12 @@
         <label>標準開始<input id="normalStart" type="time"></label>
         <label>標準終了<input id="normalEnd" type="time"></label>
         <label>深夜開始<input id="nightStart" type="time"></label>
-        <label>月残業上限(h)<input id="monthOtLimit" type="number"></label>
-        <label>年残業上限(h)<input id="yearOtLimit" type="number"></label>
+        <h2>36協定・警戒設定</h2>
+        <label>運用区分<select id="agreementMode"><option value="standard">通常（特別条項なし）</option><option value="special">特別条項あり</option></select></label>
+        <label>会社の月時間外目標上限(h)<input id="monthOtLimit" type="number" min="1" max="99" step="1"></label>
+        <label>会社の年時間外目標上限(h)<input id="yearOtLimit" type="number" min="1" max="720" step="1"></label>
+        <label>警戒表示開始(%)<input id="agreementWarnPercent" type="number" min="50" max="99" step="1"></label>
+        <p class="hint full agreement-legal-note">法定監視値は固定です：原則 月45h・年360h。特別条項でも年720h以内、時間外＋法定休日労働は単月100h未満・2〜6か月平均80h以内、45h超は年6回以内。会社設定はこれより厳しい警戒ラインとして使います。</p>
         <button id="saveSettings" class="primary full">設定を保存</button>
       </article>
 
@@ -270,9 +275,8 @@
   </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="firebase-config.js?v=8.1.0"></script>
-  <script type="module" src="cloud-sync.js?v=9.0-snapshot"></script>
-  <script src="app.js?v=9.0-snapshot"></script>
-  <script src="attendance-snapshot-export.js?v=1"></script>
+  <script src="firebase-config.js?v=8.2.0"></script>
+  <script type="module" src="cloud-sync.js?v=8.2.0"></script>
+  <script src="app.js?v=8.2.0"></script>
 </body>
 </html>

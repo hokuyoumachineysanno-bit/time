@@ -19,7 +19,7 @@ import {
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
 
-const VERSION = "8.2";
+const VERSION = "8.0";
 const CONFIG = window.FIREBASE_CONFIG || {};
 const LOCAL_KEYS = ["attendancePwaV6", "attendancePwaV5", "attendancePwaV4"];
 
@@ -55,20 +55,11 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-function activeEmployeeId(){
-  return localStorage.getItem("attendancePwaV82ActiveEmployee") || "EMP-004";
-}
-function employeeStore(){
-  try{return JSON.parse(localStorage.getItem("attendancePwaV82ByEmployee")||"{}")}catch{return{}}
-}
 function localState() {
-  const emp=activeEmployeeId();
-  const state=employeeStore()[emp];
-  if(state)return state;
   for (const key of LOCAL_KEYS) {
     try {
       const raw = localStorage.getItem(key);
-      if (raw && emp==="EMP-004") return JSON.parse(raw);
+      if (raw) return JSON.parse(raw);
     } catch (error) {
       console.warn("ローカルデータ解析失敗", key, error);
     }
@@ -87,7 +78,7 @@ function stateRef() {
   if (!db || !user) {
     throw new Error("Firestoreまたはログイン情報がありません。");
   }
-  return doc(db, "shared", `attendance-${activeEmployeeId()}`);
+  return doc(db, "shared", "attendance-main");
 }
 
 function normalizeState(value = {}) {
@@ -206,7 +197,7 @@ function diagnostics() {
           email: user.email
         }
       : null,
-    firestorePath: user ? `shared/attendance-${activeEmployeeId()}` : null,
+    firestorePath: user ? "shared/attendance-main" : null,
     status: currentStatus,
     lastAction,
     lastError: lastError
@@ -486,22 +477,6 @@ async function init() {
     window.dispatchEvent(new Event("attendance-cloud-ready"));
   }
 }
-
-window.addEventListener("attendance-cloud-reconnect", async () => {
-  try{
-    if(unsubscribe){unsubscribe();unsubscribe=null}
-    realtimeReady=false;
-    if(user && db){
-      await startRealtime();
-      await pullCloud();
-    }
-    emitStatus();
-  }catch(error){
-    lastError=error;
-    console.error("社員切替クラウド再接続失敗",error);
-    setStatus("error","社員切替同期エラー",error.message);
-  }
-});
 
 window.addEventListener("attendance-local-change", event => {
   schedulePush(event.detail);
