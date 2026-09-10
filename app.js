@@ -1,13 +1,13 @@
 
 'use strict';
 const KEY='attendancePwaV6',LEGACY_KEY='attendancePwaV5',OLDER_KEY='attendancePwaV4',AUTH_KEY=KEY+'.authHash',SESSION_KEY=KEY+'.sessionUntil',SESSION_DAYS=30;
-const defaults={version:8.2,settings:{fiscalYear:new Date().getFullYear(),fiscalStartMonth:4,fiscalStartDay:21,cutoffDay:20,annualHolidayTarget:110,standardHours:8,baseBreak:1,extraBreak:.25,extraBreakAfter:'18:00',roundMinutes:15,roundStart:'切上',roundEnd:'切捨',earlyStart:'05:00',normalStart:'08:30',normalEnd:'17:30',nightStart:'22:00',agreementMode:'standard',monthOtLimit:45,yearOtLimit:360,agreementWarnPercent:80},records:{},calendar:{},holidayHistory:[]};
+const defaults={version:8.3,settings:{fiscalYear:new Date().getFullYear(),fiscalStartMonth:4,fiscalStartDay:21,cutoffDay:20,annualHolidayTarget:110,paidLeaveOpeningBalance:10,paidLeaveTarget:5,standardHours:8,baseBreak:1,extraBreak:.25,extraBreakAfter:'18:00',roundMinutes:15,roundStart:'切上',roundEnd:'切捨',earlyStart:'05:00',normalStart:'08:30',normalEnd:'17:30',nightStart:'22:00',agreementMode:'standard',monthOtLimit:45,yearOtLimit:360,agreementWarnPercent:80},records:{},calendar:{},holidayHistory:[]};
 let state=load(),dialogDate='',editDate='',deferredPrompt=null,applyingCloudState=false;
 const $=id=>document.getElementById(id),pad=n=>String(n).padStart(2,'0');
-function load(){try{const raw=JSON.parse(localStorage.getItem(KEY)||localStorage.getItem(LEGACY_KEY)||localStorage.getItem(OLDER_KEY)||'{}');return{version:8.2,settings:Object.assign({},defaults.settings,raw.settings||{}),records:raw.records||{},calendar:raw.calendar||{},holidayHistory:Array.isArray(raw.holidayHistory)?raw.holidayHistory:[]}}catch{return structuredClone(defaults)}}
+function load(){try{const raw=JSON.parse(localStorage.getItem(KEY)||localStorage.getItem(LEGACY_KEY)||localStorage.getItem(OLDER_KEY)||'{}');return{version:8.3,settings:Object.assign({},defaults.settings,raw.settings||{}),records:raw.records||{},calendar:raw.calendar||{},holidayHistory:Array.isArray(raw.holidayHistory)?raw.holidayHistory:[]}}catch{return structuredClone(defaults)}}
 function persist(){
   try{
-    state.version=8.1;
+    state.version=8.3;
     const text=JSON.stringify(state);
     localStorage.setItem(KEY,text);
     const check=localStorage.getItem(KEY);
@@ -259,6 +259,111 @@ function agreementStats(){
   const over45=months.filter((m,i)=>i<=idx&&(m.ot||0)>45).length;
   return{st,idx,cur,currentCombined,avgs,maxAvg,maxAvgMonths,over45}
 }
+
+function leaveStats(){
+  const [fyStart,fyEnd]=fiscalBounds();
+  const today=new Date();
+  today.setHours(0,0,0,0);
+
+  const effectiveToday=today<fyStart?new Date(fyStart):today>fyEnd?new Date(fyEnd):today;
+  let holidayTaken=0;
+  let futurePlannedHoliday=0;
+  let plannedHolidayTotal=0;
+  let paidLeaveUsed=0;
+  let compLeaveUsed=0;
+  let holidayWorkedPast=0;
+
+  for(const k of allKeys()){
+    const d=parseIso(k);
+    d.setHours(0,0,0,0);
+    const h=holidayFor(k);
+    const r=state.records[k]||{};
+    const c=calcRecord(k,r);
+    const isCalendarHoliday=h.type!=='勤務日';
+    const isPastOrToday=d<=effectiveToday;
+    const worked=c.work>0;
+
+    if(isCalendarHoliday){
+      plannedHolidayTotal++;
+      if(d>effectiveToday){
+        futurePlannedHoliday++;
+      }else if(!worked){
+        holidayTaken++;
+      }else{
+        holidayWorkedPast++;
+      }
+    }
+
+    // 代休は「実際に休んだ日」として休日取得実績へ加算。
+    // 有休は別監視なので年間休日取得には含めない。
+    if(isPastOrToday && r.type==='代休' && !isCalendarHoliday){
+      holidayTaken++;
+      compLeaveUsed++;
+    }
+
+    if(isPastOrToday && r.type==='有休'){
+      paidLeaveUsed++;
+    }
+  }
+
+  const holidayTarget=Math.max(0,+state.settings.annualHolidayTarget||0);
+  const paidOpening=Math.max(0,+state.settings.paidLeaveOpeningBalance||0);
+  const paidTarget=Math.max(0,+state.settings.paidLeaveTarget||0);
+  const paidRemaining=Math.max(0,paidOpening-paidLeaveUsed);
+
+  const totalDays=Math.max(1,Math.round((fyEnd-fyStart)/86400000)+1);
+  const elapsedDays=Math.max(0,Math.min(totalDays,Math.round((effectiveToday-fyStart)/86400000)+1));
+  const elapsedRatio=elapsedDays/totalDays;
+  const remainingDays=Math.max(0,Math.round((fyEnd-effectiveToday)/86400000));
+
+  const projectedHoliday=holidayTaken+futurePlannedHoliday;
+
+  return{
+    holidayTaken,
+    futurePlannedHoliday,
+    plannedHolidayTotal,
+    holidayWorkedPast,
+    holidayTarget,
+    projectedHoliday,
+    paidLeaveUsed,
+    paidOpening,
+    paidTarget,
+    paidRemaining,
+    compLeaveUsed,
+    elapsedRatio,
+    remainingDays,
+    fyStart,
+    fyEnd
+  }
+}
+
+function leaveLevel(ls){
+  let level='ok';
+
+  // 休日：今後の予定を含めても目標未達なら要確認。
+  if(ls.holidayTarget>0 && ls.projectedHoliday<ls.holidayTarget){
+    level='danger';
+  }else if(ls.holidayTarget>0 && ls.holidayTaken < ls.holidayTarget*ls.elapsedRatio*0.8){
+    level='warning';
+  }
+
+  // 有給：期末が近いのに目標未達なら警戒。
+  if(ls.paidTarget>0 && ls.paidLeaveUsed<ls.paidTarget){
+    if(ls.remainingDays<=30) level='danger';
+    else if(ls.remainingDays<=90 && level!=='danger') level='warning';
+  }
+
+  return level
+}
+
+function paintLeaveMeter(id,value,limit,levelOverride=null){
+  const box=$(id),bar=$(id+'Bar');
+  const pct=limit>0?clamp(value/limit*100,0,100):0;
+  const level=levelOverride||'ok';
+  if(box)box.className='agreement-meter '+level;
+  if(bar)bar.style.width=pct+'%';
+}
+
 function meterState(value,limit,warnPercent=80,strictLess=false){
   const pct=limit?value/limit*100:0;
   const over=strictLess?value>=limit:value>limit;
@@ -310,6 +415,54 @@ function renderDashboard(){
 
   const avgText=a.avgs.length?a.avgs.map(x=>`${x.months}か月 ${x.value.toFixed(1)}h`).join(' / '):'まだ算出対象なし';
   $('agreementSummary').innerHTML=`<b>現在月：</b>時間外 ${curOt.toFixed(1)}h・法定休日 ${(a.cur.statutoryHolidayWork||0).toFixed(1)}h・合計 ${curCombined.toFixed(1)}h<br><b>2〜6か月平均：</b>${avgText}`;
+
+  const ls=leaveStats();
+  const leaveState=leaveLevel(ls);
+
+  // 休日取得
+  let holidayMeterLevel='ok';
+  if(ls.holidayTarget>0 && ls.projectedHoliday<ls.holidayTarget)holidayMeterLevel='danger';
+  else if(ls.holidayTarget>0 && ls.holidayTaken<ls.holidayTarget*ls.elapsedRatio*0.8)holidayMeterLevel='warning';
+  paintLeaveMeter('leaveHoliday',ls.holidayTaken,ls.holidayTarget||1,holidayMeterLevel);
+  $('leaveHolidayValue').textContent=`${ls.holidayTaken} / ${ls.holidayTarget}日`;
+  $('leaveHolidayNote').textContent=`年間予定 ${ls.plannedHolidayTotal}日・今後予定 ${ls.futurePlannedHoliday}日・休日出勤で未取得 ${ls.holidayWorkedPast}日`;
+
+  // 有給取得
+  let paidLevel='ok';
+  if(ls.paidTarget>0 && ls.paidLeaveUsed<ls.paidTarget){
+    if(ls.remainingDays<=30)paidLevel='danger';
+    else if(ls.remainingDays<=90)paidLevel='warning';
+  }
+  paintLeaveMeter('leavePaid',ls.paidLeaveUsed,ls.paidTarget||1,paidLevel);
+  $('leavePaidValue').textContent=`${ls.paidLeaveUsed} / ${ls.paidTarget}日`;
+  $('leavePaidNote').textContent=ls.paidLeaveUsed>=ls.paidTarget
+    ? '年間取得目標に到達'
+    : `目標まで残り ${Math.max(0,ls.paidTarget-ls.paidLeaveUsed)}日・年度末まで ${ls.remainingDays}日`;
+
+  // 有給残
+  const usedPct=ls.paidOpening>0?ls.paidLeaveUsed/ls.paidOpening*100:0;
+  const balanceLevel=ls.paidRemaining<=0&&ls.paidOpening>0?'warning':'ok';
+  if($('leavePaidBalance'))$('leavePaidBalance').className='agreement-meter '+balanceLevel;
+  if($('leavePaidBalanceBar'))$('leavePaidBalanceBar').style.width=clamp(100-usedPct,0,100)+'%';
+  $('leavePaidBalanceValue').textContent=`${ls.paidRemaining}日`;
+  $('leavePaidBalanceNote').textContent=`年度開始時 ${ls.paidOpening}日 − 取得 ${ls.paidLeaveUsed}日`;
+
+  // 今後の休日
+  const futureLimit=Math.max(1,ls.holidayTarget-ls.holidayTaken);
+  const futureLevel=ls.projectedHoliday<ls.holidayTarget?'danger':'ok';
+  paintLeaveMeter('leaveFuture',ls.futurePlannedHoliday,futureLimit,futureLevel);
+  $('leaveFutureValue').textContent=`${ls.futurePlannedHoliday}日`;
+  $('leaveFutureNote').textContent=`現時点の取得 ${ls.holidayTaken}日 ＋ 今後予定 ${ls.futurePlannedHoliday}日 ＝ ${ls.projectedHoliday}日見込み`;
+
+  const leaveBadge=$('leaveOverall');
+  leaveBadge.className='agreement-badge '+leaveState;
+  leaveBadge.textContent=leaveState==='danger'?'要調整':leaveState==='warning'?'注意':'順調';
+
+  const fyEndText=`${ls.fyEnd.getFullYear()}/${ls.fyEnd.getMonth()+1}/${ls.fyEnd.getDate()}`;
+  $('leaveSummary').innerHTML=
+    `<b>休日：</b>取得済 ${ls.holidayTaken}日 / 目標 ${ls.holidayTarget}日、年度末見込み ${ls.projectedHoliday}日<br>`+
+    `<b>有給：</b>取得 ${ls.paidLeaveUsed}日 / 目標 ${ls.paidTarget}日、残 ${ls.paidRemaining}日<br>`+
+    `<small>監視期間末：${fyEndText}　※有休は1日単位で集計</small>`;
 
   $('monthRows').innerHTML=st.months.map(m=>`<tr><td>${m.label}<br><small>${m.range}</small></td><td>${m.work.toFixed(1)}</td><td>${m.ot.toFixed(1)}</td><td>${m.scheduledHolidayWorkDays}</td><td>${m.statutoryHolidayWork.toFixed(1)}</td><td>${m.comp.toFixed(1)}</td></tr>`).join('')
 }

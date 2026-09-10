@@ -416,3 +416,17 @@
 .agreement-summary{margin-top:12px;padding:10px 12px;border-radius:10px;background:var(--soft);line-height:1.65}
 .agreement-legal-note{padding:10px;border:1px solid var(--border);border-radius:10px;background:var(--soft)}
 @media(max-width:720px){.agreement-grid{grid-template-columns:1fr}.agreement-meter-head{align-items:flex-start}.agreement-meter-head strong{font-size:.95rem}}
+
+
+/* ===== v8.3 leave / paid-leave monitor ===== */
+.leave-monitor-card .agreement-summary small{
+  color:var(--muted);
+}
+.leave-monitor-card .agreement-meter strong{
+  white-space:nowrap;
+}
+@media(max-width:720px){
+  .leave-monitor-card .agreement-grid{
+    grid-template-columns:1fr;
+  }
+}

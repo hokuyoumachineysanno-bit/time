@@ -7,8 +7,8 @@
   <meta name="description" content="締め日連動・過去編集・Excel取込対応の勤怠管理PWA">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=8.2.0">
-  <title>勤怠管理 v8.2</title>
+  <link rel="stylesheet" href="styles.css?v=8.3.0">
+  <title>勤怠管理 v8.3</title>
 </head>
 <body>
   <section id="lockScreen" class="lock-screen">
@@ -24,7 +24,7 @@
   </section>
 
   <header class="app-header">
-    <div><h1>勤怠管理 <small class="version-badge">v8.2</small></h1><p id="todayLabel"></p></div>
+    <div><h1>勤怠管理 <small class="version-badge">v8.3</small></h1><p id="todayLabel"></p></div>
     <div class="header-actions">
       <span id="cloudHeaderStatus" class="cloud-header-status offline">ローカル</span>
       <button id="installBtn" class="ghost" hidden>追加</button>
@@ -134,6 +134,56 @@
         </div>
         <div class="agreement-summary" id="agreementSummary"></div>
       </article>
+
+      <article class="card agreement-card leave-monitor-card">
+        <div class="section-head">
+          <div>
+            <h2>休日・有給取得監視</h2>
+            <small>年間休日と有給を36協定とは別に監視</small>
+          </div>
+          <span id="leaveOverall" class="agreement-badge ok">順調</span>
+        </div>
+
+        <div class="agreement-grid">
+          <div class="agreement-meter" id="leaveHoliday">
+            <div class="agreement-meter-head">
+              <span>年間休日取得</span>
+              <strong id="leaveHolidayValue">0 / 110日</strong>
+            </div>
+            <div class="progress"><div id="leaveHolidayBar"></div></div>
+            <small id="leaveHolidayNote"></small>
+          </div>
+
+          <div class="agreement-meter" id="leavePaid">
+            <div class="agreement-meter-head">
+              <span>有給取得</span>
+              <strong id="leavePaidValue">0 / 5日</strong>
+            </div>
+            <div class="progress"><div id="leavePaidBar"></div></div>
+            <small id="leavePaidNote"></small>
+          </div>
+
+          <div class="agreement-meter" id="leavePaidBalance">
+            <div class="agreement-meter-head">
+              <span>有給残</span>
+              <strong id="leavePaidBalanceValue">0日</strong>
+            </div>
+            <div class="progress"><div id="leavePaidBalanceBar"></div></div>
+            <small id="leavePaidBalanceNote"></small>
+          </div>
+
+          <div class="agreement-meter" id="leaveFuture">
+            <div class="agreement-meter-head">
+              <span>今後の予定休日</span>
+              <strong id="leaveFutureValue">0日</strong>
+            </div>
+            <div class="progress"><div id="leaveFutureBar"></div></div>
+            <small id="leaveFutureNote"></small>
+          </div>
+        </div>
+
+        <div class="agreement-summary" id="leaveSummary"></div>
+      </article>
       <article class="card"><h2>月次一覧</h2><div class="table-wrap"><table><thead><tr><th>月度・期間</th><th>就労</th><th>時間外</th><th>所定休日出勤</th><th>法定休日労働</th><th>代休残</th></tr></thead><tbody id="monthRows"></tbody></table></div></article>
     </section>
 
@@ -182,7 +232,10 @@
         <label>毎月の締め日<input id="cutoffDay" type="number" min="1" max="31"></label>
         <p id="periodPreview" class="period-note full"></p><p id="periodWarning" class="message error full"></p>
         <h2>勤務・労務設定</h2>
-        <label>年間休日目標<input id="annualHolidayTarget" type="number"></label>
+        <label>年間休日目標<input id="annualHolidayTarget" type="number" min="0" max="366"></label>
+        <label>年度開始時の有給残日数<input id="paidLeaveOpeningBalance" type="number" min="0" max="99" step="0.5"></label>
+        <label>年間有給取得目標<input id="paidLeaveTarget" type="number" min="0" max="99" step="0.5"></label>
+        <p class="hint full">有給は「勤務区分＝有休」の入力を1日として集計します。法定の年5日取得義務を監視する場合は、対象者の付与基準期間とこのアプリの年度期間を合わせてください。</p>
         <label>標準就労時間(h)<input id="standardHours" type="number" step="0.25"></label>
         <label>基本休憩(h)<input id="baseBreak" type="number" step="0.25"></label>
         <label>夜間追加休憩(h)<input id="extraBreak" type="number" step="0.25"></label>
@@ -275,8 +328,8 @@
   </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="firebase-config.js?v=8.2.0"></script>
-  <script type="module" src="cloud-sync.js?v=8.2.0"></script>
-  <script src="app.js?v=8.2.0"></script>
+  <script src="firebase-config.js?v=8.3.0"></script>
+  <script type="module" src="cloud-sync.js?v=8.3.0"></script>
+  <script src="app.js?v=8.3.0"></script>
 </body>
 </html>
