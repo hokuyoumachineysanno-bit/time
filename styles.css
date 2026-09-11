@@ -430,3 +430,6 @@
     grid-template-columns:1fr;
   }
 }
+
+/* v8.4 quarter monitor */
+.quarter-headline{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;margin:4px 0 12px}.quarter-headline span{color:var(--muted);font-size:.9rem}.quarter-headline strong{font-size:1.15rem}

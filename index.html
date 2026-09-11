@@ -7,8 +7,8 @@
   <meta name="description" content="締め日連動・過去編集・Excel取込対応の勤怠管理PWA">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=8.3.0">
-  <title>勤怠管理 v8.3</title>
+  <link rel="stylesheet" href="styles.css?v=8.4.0">
+  <title>勤怠管理 v8.4</title>
 </head>
 <body>
   <section id="lockScreen" class="lock-screen">
@@ -24,7 +24,7 @@
   </section>
 
   <header class="app-header">
-    <div><h1>勤怠管理 <small class="version-badge">v8.3</small></h1><p id="todayLabel"></p></div>
+    <div><h1>勤怠管理 <small class="version-badge">v8.4</small></h1><p id="todayLabel"></p></div>
     <div class="header-actions">
       <span id="cloudHeaderStatus" class="cloud-header-status offline">ローカル</span>
       <button id="installBtn" class="ghost" hidden>追加</button>
@@ -184,6 +184,18 @@
 
         <div class="agreement-summary" id="leaveSummary"></div>
       </article>
+
+      <article class="card agreement-card quarter-monitor-card">
+        <div class="section-head"><div><h2>四半期ペース監視</h2><small>法定上限ではなく、年間目標に対する進み方を監視</small></div><span id="quarterOverall" class="agreement-badge ok">順調</span></div>
+        <div class="quarter-headline"><strong id="quarterTitle">第1四半期</strong><span id="quarterRange">—</span></div>
+        <div class="agreement-grid">
+          <div class="agreement-meter" id="quarterOt"><div class="agreement-meter-head"><span>時間外ペース</span><strong id="quarterOtValue">0.0h</strong></div><div class="progress"><div id="quarterOtBar"></div></div><small id="quarterOtNote"></small></div>
+          <div class="agreement-meter" id="quarterHoliday"><div class="agreement-meter-head"><span>休日取得ペース</span><strong id="quarterHolidayValue">0日</strong></div><div class="progress"><div id="quarterHolidayBar"></div></div><small id="quarterHolidayNote"></small></div>
+          <div class="agreement-meter" id="quarterPaid"><div class="agreement-meter-head"><span>有給取得ペース</span><strong id="quarterPaidValue">0日</strong></div><div class="progress"><div id="quarterPaidBar"></div></div><small id="quarterPaidNote"></small></div>
+          <div class="agreement-meter" id="quarterCombined"><div class="agreement-meter-head"><span>時間外＋法定休日</span><strong id="quarterCombinedValue">0.0h</strong></div><div class="progress"><div id="quarterCombinedBar"></div></div><small id="quarterCombinedNote"></small></div>
+        </div>
+        <div class="agreement-summary" id="quarterSummary"></div>
+      </article>
       <article class="card"><h2>月次一覧</h2><div class="table-wrap"><table><thead><tr><th>月度・期間</th><th>就労</th><th>時間外</th><th>所定休日出勤</th><th>法定休日労働</th><th>代休残</th></tr></thead><tbody id="monthRows"></tbody></table></div></article>
     </section>
 
@@ -235,6 +247,8 @@
         <label>年間休日目標<input id="annualHolidayTarget" type="number" min="0" max="366"></label>
         <label>年度開始時の有給残日数<input id="paidLeaveOpeningBalance" type="number" min="0" max="99" step="0.5"></label>
         <label>年間有給取得目標<input id="paidLeaveTarget" type="number" min="0" max="99" step="0.5"></label>
+        <label>四半期警戒差(%)<input id="quarterWarningGap" type="number" min="0" max="100" step="5"></label>
+        <label>四半期危険差(%)<input id="quarterDangerGap" type="number" min="0" max="100" step="5"></label>
         <p class="hint full">有給は「勤務区分＝有休」の入力を1日として集計します。法定の年5日取得義務を監視する場合は、対象者の付与基準期間とこのアプリの年度期間を合わせてください。</p>
         <label>標準就労時間(h)<input id="standardHours" type="number" step="0.25"></label>
         <label>基本休憩(h)<input id="baseBreak" type="number" step="0.25"></label>
@@ -328,8 +342,8 @@
   </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="firebase-config.js?v=8.3.0"></script>
-  <script type="module" src="cloud-sync.js?v=8.3.0"></script>
-  <script src="app.js?v=8.3.0"></script>
+  <script src="firebase-config.js?v=8.4.0"></script>
+  <script type="module" src="cloud-sync.js?v=8.4.0"></script>
+  <script src="app.js?v=8.4.0"></script>
 </body>
 </html>
