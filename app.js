@@ -1,10 +1,10 @@
 
 'use strict';
 const KEY='attendancePwaV6',LEGACY_KEY='attendancePwaV5',OLDER_KEY='attendancePwaV4',AUTH_KEY=KEY+'.authHash',SESSION_KEY=KEY+'.sessionUntil',SESSION_DAYS=30;
-const defaults={version:8.4,settings:{fiscalYear:new Date().getFullYear(),fiscalStartMonth:4,fiscalStartDay:21,cutoffDay:20,annualHolidayTarget:110,paidLeaveOpeningBalance:10,paidLeaveTarget:5,quarterWarningGap:10,quarterDangerGap:20,standardHours:8,baseBreak:1,extraBreak:.25,extraBreakAfter:'18:00',roundMinutes:15,roundStart:'切上',roundEnd:'切捨',earlyStart:'05:00',normalStart:'08:30',normalEnd:'17:30',nightStart:'22:00',agreementMode:'standard',monthOtLimit:45,yearOtLimit:360,agreementWarnPercent:80},records:{},calendar:{},holidayHistory:[]};
+const defaults={version:8.5,settings:{fiscalYear:new Date().getFullYear(),fiscalStartMonth:4,fiscalStartDay:21,cutoffDay:20,annualHolidayTarget:110,paidLeaveOpeningBalance:10,paidLeaveTarget:5,quarterWarningGap:10,quarterDangerGap:20,standardHours:8,baseBreak:1,extraBreak:.25,extraBreakAfter:'18:00',roundMinutes:15,roundStart:'切上',roundEnd:'切捨',earlyStart:'05:00',normalStart:'08:30',normalEnd:'17:30',nightStart:'22:00',agreementMode:'standard',monthOtLimit:45,yearOtLimit:360,agreementWarnPercent:80},records:{},calendar:{},holidayHistory:[]};
 let state=load(),dialogDate='',editDate='',deferredPrompt=null,applyingCloudState=false;
 const $=id=>document.getElementById(id),pad=n=>String(n).padStart(2,'0');
-function load(){try{const raw=JSON.parse(localStorage.getItem(KEY)||localStorage.getItem(LEGACY_KEY)||localStorage.getItem(OLDER_KEY)||'{}');return{version:8.4,settings:Object.assign({},defaults.settings,raw.settings||{}),records:raw.records||{},calendar:raw.calendar||{},holidayHistory:Array.isArray(raw.holidayHistory)?raw.holidayHistory:[]}}catch{return structuredClone(defaults)}}
+function load(){try{const raw=JSON.parse(localStorage.getItem(KEY)||localStorage.getItem(LEGACY_KEY)||localStorage.getItem(OLDER_KEY)||'{}');return{version:8.5,settings:Object.assign({},defaults.settings,raw.settings||{}),records:raw.records||{},calendar:raw.calendar||{},holidayHistory:Array.isArray(raw.holidayHistory)?raw.holidayHistory:[]}}catch{return structuredClone(defaults)}}
 function persist(){
   try{
     state.version=8.3;
@@ -261,22 +261,49 @@ function agreementStats(){
 }
 
 
-function quarterInfoForDate(date=new Date()){
-  const [fyStart]=fiscalBounds(); const d=new Date(date); d.setHours(0,0,0,0);
-  let m=(d.getFullYear()-fyStart.getFullYear())*12+d.getMonth()-fyStart.getMonth(); m=Math.max(0,Math.min(11,m));
-  const index=Math.floor(m/3); const start=new Date(fyStart.getFullYear(),fyStart.getMonth()+index*3,fyStart.getDate()); const end=new Date(fyStart.getFullYear(),fyStart.getMonth()+(index+1)*3,fyStart.getDate()-1); start.setHours(0,0,0,0); end.setHours(0,0,0,0);
-  return{index,label:`第${index+1}四半期`,start,end}
+let selectedQuarterIndex=null;
+function calendarQuarterInfo(index=null,date=new Date()){
+  const d=new Date(date), base=d.getMonth()<3?d.getFullYear()-1:d.getFullYear();
+  const current=d.getMonth()<3?3:Math.floor((d.getMonth()-3)/3);
+  const qi=index===null?current:Math.max(0,Math.min(3,+index));
+  const months=[3,6,9,0], years=[base,base,base,base+1], labels=["4–6月","7–9月","10–12月","1–3月"];
+  const start=new Date(years[qi],months[qi],1), end=new Date(years[qi],months[qi]+3,0);
+  start.setHours(0,0,0,0); end.setHours(0,0,0,0);
+  return {index:qi,label:labels[qi],start,end};
 }
-function quarterStats(){
-  const q=quarterInfoForDate(),st=stats(),ls=leaveStats(); let ot=0,stat=0,hol=0,paid=0;
-  for(const k of allKeys()){const d=parseIso(k);d.setHours(0,0,0,0);if(d<q.start||d>q.end)continue;const r=state.records[k]||{},c=calcRecord(k,r),h=holidayFor(k);ot+=st.otMap[k]?.overtime||0;stat+=c.statutoryHolidayWork||0;if(h.type!=='勤務日'&&c.work<=0)hol++;if(r.type==='代休'&&h.type==='勤務日')hol++;if(r.type==='有休')paid++;}
-  const t=new Date();t.setHours(0,0,0,0);const e=t<q.start?q.start:t>q.end?q.end:t;const days=Math.max(1,Math.round((q.end-q.start)/86400000)+1),elapsed=Math.max(0,Math.min(days,Math.round((e-q.start)/86400000)+1))/days;
-  const yOt=Math.max(1,+state.settings.yearOtLimit||360),yHol=Math.max(0,+state.settings.annualHolidayTarget||0),yPaid=Math.max(0,+state.settings.paidLeaveTarget||0);
-  return{q,ot,stat,combined:ot+stat,hol,paid,elapsed,otPlan:yOt/4,holPlan:yHol/4,paidPlan:yPaid/4,yHol,yPaid}
+function quarterStats(index=selectedQuarterIndex){
+  const q=calendarQuarterInfo(index),st=stats(); let ot=0,statutory=0,holidayTaken=0,paidUsed=0;
+  for(const k of allKeys()){
+    const d=parseIso(k);d.setHours(0,0,0,0);if(d<q.start||d>q.end)continue;
+    const r=state.records[k]||{},c=calcRecord(k,r),h=holidayFor(k);
+    ot+=st.otMap[k]?.overtime||0; statutory+=c.statutoryHolidayWork||0;
+    if(h.type!=="勤務日"&&c.work<=0)holidayTaken++;
+    if(r.type==="代休"&&h.type==="勤務日")holidayTaken++;
+    if(r.type==="有休")paidUsed++;
+  }
+  const today=new Date();today.setHours(0,0,0,0);let elapsed=0;
+  if(today>q.end)elapsed=1; else if(today>=q.start){
+    const total=Math.round((q.end-q.start)/86400000)+1;
+    elapsed=(Math.round((today-q.start)/86400000)+1)/total;
+  }
+  const annualOt=Math.max(1,+state.settings.companyYearOtLimit||+state.settings.yearOtLimit||360);
+  const annualHoliday=Math.max(0,+state.settings.annualHolidayTarget||0),annualPaid=Math.max(0,+state.settings.paidLeaveTarget||0);
+  return {q,ot,statutory,combined:ot+statutory,holidayTaken,paidUsed,qElapsedRatio:elapsed,
+    qOtPlan:annualOt/4,qHolidayPlan:annualHoliday/4,qPaidPlan:annualPaid/4,
+    annualHolidayTarget:annualHoliday,annualPaidTarget:annualPaid};
 }
-function quarterLevel(actual,plan,elapsed,inverse){
-  if(plan<=0)return'ok';const warn=+state.settings.quarterWarningGap||10,danger=Math.max(warn,+state.settings.quarterDangerGap||20),ratio=actual/Math.max(.0001,plan*elapsed)*100;
-  if(inverse){if(ratio>=100+danger)return'danger';if(ratio>=100+warn)return'warning'}else{if(ratio<=100-danger)return'danger';if(ratio<=100-warn)return'warning'}return'ok'
+function quarterPaceLevel(actual,plan,elapsed,inverse=false){
+  if(plan<=0||elapsed<=0)return "ok";
+  const warn=Math.max(0,+state.settings.quarterWarningGap||10),danger=Math.max(warn,+state.settings.quarterDangerGap||20);
+  const ratio=actual/Math.max(.0001,plan*elapsed)*100;
+  if(inverse){if(ratio>=100+danger)return "danger";if(ratio>=100+warn)return "warning";}
+  else{if(ratio<=100-danger)return "danger";if(ratio<=100-warn)return "warning";}
+  return "ok";
+}
+function quarterAdvice(items){
+  const bad=items.filter(x=>x.level==="danger"),warn=items.filter(x=>x.level==="warning"),targets=bad.length?bad:warn;
+  if(!targets.length)return "<strong>判定：</strong>大きな調整項目はありません。緑は概ね順調です。";
+  return `<strong>${bad.length?"要調整":"注意"}の理由：</strong>`+targets.map(x=>`<span class="advice-item"><b>${x.name}</b> — ${x.advice}</span>`).join("");
 }
 
 function leaveStats(){
@@ -485,13 +512,25 @@ function renderDashboard(){
 
   const qs=quarterStats(),fmt=d=>`${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`;
   $('quarterTitle').textContent=qs.q.label;$('quarterRange').textContent=`${fmt(qs.q.start)}〜${fmt(qs.q.end)}`;
-  const lOt=quarterLevel(qs.ot,qs.otPlan,qs.elapsed,true),lHol=quarterLevel(qs.hol,qs.holPlan,qs.elapsed,false),lPaid=quarterLevel(qs.paid,qs.paidPlan,qs.elapsed,false),lComb=quarterLevel(qs.combined,qs.otPlan,qs.elapsed,true);
-  paintLeaveMeter('quarterOt',qs.ot,qs.otPlan||1,lOt);$('quarterOtValue').textContent=`${qs.ot.toFixed(1)}h`;$('quarterOtNote').textContent=`四半期目安 ${qs.otPlan.toFixed(1)}h・経過 ${(qs.elapsed*100).toFixed(0)}%`;
-  paintLeaveMeter('quarterHoliday',qs.hol,qs.holPlan||1,lHol);$('quarterHolidayValue').textContent=`${qs.hol}日`;$('quarterHolidayNote').textContent=`四半期目安 ${qs.holPlan.toFixed(1)}日・年間目標 ${qs.yHol}日`;
-  paintLeaveMeter('quarterPaid',qs.paid,qs.paidPlan||1,lPaid);$('quarterPaidValue').textContent=`${qs.paid}日`;$('quarterPaidNote').textContent=`四半期目安 ${qs.paidPlan.toFixed(1)}日・年間目標 ${qs.yPaid}日`;
-  paintLeaveMeter('quarterCombined',qs.combined,qs.otPlan||1,lComb);$('quarterCombinedValue').textContent=`${qs.combined.toFixed(1)}h`;$('quarterCombinedNote').textContent=`時間外 ${qs.ot.toFixed(1)}h ＋ 法定休日 ${qs.stat.toFixed(1)}h`;
-  const qLevels=[lOt,lHol,lPaid,lComb],qOverall=qLevels.includes('danger')?'danger':qLevels.includes('warning')?'warning':'ok',qb=$('quarterOverall');qb.className='agreement-badge '+qOverall;qb.textContent=qOverall==='danger'?'要調整':qOverall==='warning'?'注意':'順調';
-  $('quarterSummary').innerHTML=`<b>四半期：</b>残業 ${qs.ot.toFixed(1)}h / 目安 ${qs.otPlan.toFixed(1)}h、休日 ${qs.hol}日 / 目安 ${qs.holPlan.toFixed(1)}日、有給 ${qs.paid}日 / 目安 ${qs.paidPlan.toFixed(1)}日<br><small>四半期値は法定上限ではなく、年間目標に対するペース監視です。</small>`;
+  document.querySelectorAll('[data-quarter]').forEach(b=>b.classList.toggle('active',+b.dataset.quarter===qs.q.index));
+  const qOtLevel=quarterPaceLevel(qs.ot,qs.qOtPlan,qs.qElapsedRatio,true);
+  const qHolidayLevel=quarterPaceLevel(qs.holidayTaken,qs.qHolidayPlan,qs.qElapsedRatio,false);
+  const qPaidLevel=quarterPaceLevel(qs.paidUsed,qs.qPaidPlan,qs.qElapsedRatio,false);
+  const qCombinedLevel=quarterPaceLevel(qs.combined,qs.qOtPlan,qs.qElapsedRatio,true);
+  paintLeaveMeter('quarterOt',qs.ot,qs.qOtPlan||1,qOtLevel);$('quarterOtValue').textContent=`${qs.ot.toFixed(1)}h`;$('quarterOtNote').textContent=`四半期目安 ${qs.qOtPlan.toFixed(1)}h・期間経過 ${(qs.qElapsedRatio*100).toFixed(0)}%`;
+  paintLeaveMeter('quarterHoliday',qs.holidayTaken,qs.qHolidayPlan||1,qHolidayLevel);$('quarterHolidayValue').textContent=`${qs.holidayTaken}日`;$('quarterHolidayNote').textContent=`四半期目安 ${qs.qHolidayPlan.toFixed(1)}日・年間目標 ${qs.annualHolidayTarget}日`;
+  paintLeaveMeter('quarterPaid',qs.paidUsed,qs.qPaidPlan||1,qPaidLevel);$('quarterPaidValue').textContent=`${qs.paidUsed}日`;$('quarterPaidNote').textContent=`四半期目安 ${qs.qPaidPlan.toFixed(1)}日・年間目標 ${qs.annualPaidTarget}日`;
+  paintLeaveMeter('quarterCombined',qs.combined,qs.qOtPlan||1,qCombinedLevel);$('quarterCombinedValue').textContent=`${qs.combined.toFixed(1)}h`;$('quarterCombinedNote').textContent=`時間外 ${qs.ot.toFixed(1)}h ＋ 法定休日 ${qs.statutory.toFixed(1)}h`;
+  const items=[
+    {name:"時間外",level:qOtLevel,advice:"残業ペースが速めです。工程配分・今後の残業予定を確認。"},
+    {name:"休日取得",level:qHolidayLevel,advice:"休日取得が目標ペースより遅めです。今後の休日配置を確認。"},
+    {name:"有給取得",level:qPaidLevel,advice:"有給取得が目標ペースより遅めです。取得予定日を先に置く。"},
+    {name:"時間外＋法定休日",level:qCombinedLevel,advice:`総負荷が高めです。時間外 ${qs.ot.toFixed(1)}h、法定休日 ${qs.statutory.toFixed(1)}h の内訳を確認。`}
+  ];
+  $('quarterActionGuide').innerHTML=quarterAdvice(items);
+  const qLevels=items.map(x=>x.level),qOverall=qLevels.includes("danger")?"danger":qLevels.includes("warning")?"warning":"ok",qBadge=$('quarterOverall');
+  qBadge.className='agreement-badge '+qOverall;qBadge.textContent=qOverall==="danger"?"要調整":qOverall==="warning"?"注意":"順調";
+  $('quarterSummary').innerHTML=`<b>${qs.q.label}：</b>残業 ${qs.ot.toFixed(1)}h / 目安 ${qs.qOtPlan.toFixed(1)}h、休日 ${qs.holidayTaken}日 / 目安 ${qs.qHolidayPlan.toFixed(1)}日、有給 ${qs.paidUsed}日 / 目安 ${qs.qPaidPlan.toFixed(1)}日<br><small>赤＝調整候補、黄＝注意、緑＝概ね順調。四半期は法定上限ではなく年間目標のペース監視です。</small>`;
 
   $('monthRows').innerHTML=st.months.map(m=>`<tr><td>${m.label}<br><small>${m.range}</small></td><td>${m.work.toFixed(1)}</td><td>${m.ot.toFixed(1)}</td><td>${m.scheduledHolidayWorkDays}</td><td>${m.statutoryHolidayWork.toFixed(1)}</td><td>${m.comp.toFixed(1)}</td></tr>`).join('')
 }
@@ -903,4 +942,5 @@ $('cloudPull').onclick=()=>window.dispatchEvent(new Event('attendance-cloud-pull
 $('cloudDiagnose').onclick=()=>window.dispatchEvent(new Event('attendance-cloud-diagnose'));$('loginButton').onclick=login;$('logoutButton').onclick=logout;$('loginPassword').onkeydown=e=>{if(e.key==='Enter')login()};$('confirmPassword').onkeydown=e=>{if(e.key==='Enter')login()};$('exportJson').onclick=()=>download('attendance-backup.json',JSON.stringify(state,null,2),'application/json');$('importJson').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{const x=JSON.parse(r.result);state={version:8.2,settings:{...defaults.settings,...(x.settings||{})},records:x.records||{},calendar:x.calendar||{},holidayHistory:Array.isArray(x.holidayHistory)?x.holidayHistory:[]};persist();renderAll();loadTodayForm();alert('復元しました')};r.readAsText(f)};$('exportCsv').onclick=exportCsv;$('importExcel').onchange=e=>{const f=e.target.files[0];if(f)importWorkbook(f)};$('resetData').onclick=()=>{if(confirm('全データを削除しますか？')){state=structuredClone(defaults);persist();renderAll();loadTodayForm()}};window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;$('installBtn').hidden=false});$('installBtn').onclick=async()=>{if(deferredPrompt){deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;$('installBtn').hidden=true}};let lastMobile=isMobileLedger();
 window.addEventListener('resize',()=>{const now=isMobileLedger();if(now!==lastMobile){lastMobile=now;const ledgerView=$('view-ledger');if(ledgerView&&ledgerView.classList.contains('active'))renderLedger()}});
 if(sessionValid()){$('lockScreen').hidden=true;renderAll();loadTodayForm()}else showLock();requestCloudStatus()}
-setup();
+setup();document.addEventListener("click",e=>{const b=e.target.closest("[data-quarter]");if(!b)return;selectedQuarterIndex=+b.dataset.quarter;renderDashboard();});
+

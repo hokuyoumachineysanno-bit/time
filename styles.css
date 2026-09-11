@@ -433,3 +433,10 @@
 
 /* v8.4 quarter monitor */
 .quarter-headline{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;margin:4px 0 12px}.quarter-headline span{color:var(--muted);font-size:.9rem}.quarter-headline strong{font-size:1.15rem}
+
+.quarter-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:8px 0 12px}
+.quarter-tabs button{padding:10px 6px;border:1px solid var(--border);border-radius:10px;background:#f5f7fa;font-weight:700;cursor:pointer}
+.quarter-tabs button.active{background:#2f7fbd;color:#fff;border-color:#2f7fbd}
+.quarter-action-guide{margin:0 0 12px;padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:#f8fafc;line-height:1.55}
+.quarter-action-guide .advice-item{display:block;margin-top:5px}
+@media(max-width:600px){.quarter-tabs{grid-template-columns:repeat(2,minmax(0,1fr))}}

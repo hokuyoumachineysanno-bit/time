@@ -7,8 +7,8 @@
   <meta name="description" content="締め日連動・過去編集・Excel取込対応の勤怠管理PWA">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=8.4.0">
-  <title>勤怠管理 v8.4</title>
+  <link rel="stylesheet" href="styles.css?v=8.5.0">
+  <title>勤怠管理 v8.5</title>
 </head>
 <body>
   <section id="lockScreen" class="lock-screen">
@@ -24,7 +24,7 @@
   </section>
 
   <header class="app-header">
-    <div><h1>勤怠管理 <small class="version-badge">v8.4</small></h1><p id="todayLabel"></p></div>
+    <div><h1>勤怠管理 <small class="version-badge">v8.5</small></h1><p id="todayLabel"></p></div>
     <div class="header-actions">
       <span id="cloudHeaderStatus" class="cloud-header-status offline">ローカル</span>
       <button id="installBtn" class="ghost" hidden>追加</button>
@@ -187,7 +187,12 @@
 
       <article class="card agreement-card quarter-monitor-card">
         <div class="section-head"><div><h2>四半期ペース監視</h2><small>法定上限ではなく、年間目標に対する進み方を監視</small></div><span id="quarterOverall" class="agreement-badge ok">順調</span></div>
-        <div class="quarter-headline"><strong id="quarterTitle">第1四半期</strong><span id="quarterRange">—</span></div>
+        <div class="quarter-tabs" role="group" aria-label="四半期切替">
+<button type="button" data-quarter="0">4–6月</button><button type="button" data-quarter="1">7–9月</button>
+<button type="button" data-quarter="2">10–12月</button><button type="button" data-quarter="3">1–3月</button>
+</div>
+<div class="quarter-headline"><strong id="quarterTitle">7–9月</strong><span id="quarterRange">—</span></div>
+<div id="quarterActionGuide" class="quarter-action-guide"></div>
         <div class="agreement-grid">
           <div class="agreement-meter" id="quarterOt"><div class="agreement-meter-head"><span>時間外ペース</span><strong id="quarterOtValue">0.0h</strong></div><div class="progress"><div id="quarterOtBar"></div></div><small id="quarterOtNote"></small></div>
           <div class="agreement-meter" id="quarterHoliday"><div class="agreement-meter-head"><span>休日取得ペース</span><strong id="quarterHolidayValue">0日</strong></div><div class="progress"><div id="quarterHolidayBar"></div></div><small id="quarterHolidayNote"></small></div>
@@ -342,8 +347,8 @@
   </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="firebase-config.js?v=8.4.0"></script>
-  <script type="module" src="cloud-sync.js?v=8.4.0"></script>
-  <script src="app.js?v=8.4.0"></script>
+  <script src="firebase-config.js?v=8.5.0"></script>
+  <script type="module" src="cloud-sync.js?v=8.5.0"></script>
+  <script src="app.js?v=8.5.0"></script>
 </body>
 </html>

@@ -19,7 +19,7 @@ import {
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
 
-const VERSION = "8.4";
+const VERSION = "8.5";
 const CONFIG = window.FIREBASE_CONFIG || {};
 const LOCAL_KEYS = ["attendancePwaV6", "attendancePwaV5", "attendancePwaV4"];
 
@@ -83,7 +83,7 @@ function stateRef() {
 
 function normalizeState(value = {}) {
   return {
-    version: 8.4,
+    version: 8.5,
     settings: value.settings || {},
     records: value.records || {},
     calendar: value.calendar || {},
@@ -116,7 +116,7 @@ function mergeRecords(localRecords = {}, cloudRecords = {}) {
 
 function mergeStates(local = {}, cloud = {}) {
   return {
-    version: 8.4,
+    version: 8.5,
     settings: { ...(local.settings || {}), ...(cloud.settings || {}) },
     records: mergeRecords(local.records || {}, cloud.records || {}),
     calendar: { ...(local.calendar || {}), ...(cloud.calendar || {}) },
